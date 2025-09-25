@@ -32,29 +32,20 @@ public interface PlanRepository extends JpaRepository<PlanEntity, String> {
     Optional<PlanEntity> findByIdAndAgentGraphId(String id, String graphId);
 
     /**
-     * Find all plans for a graph with files eagerly loaded (optimized query).
+     * Find all plans for a graph. Files and relationships are eagerly loaded via entity configuration.
      */
-    @Query("SELECT DISTINCT p FROM PlanEntity p " +
-           "LEFT JOIN FETCH p.files " +
-           "LEFT JOIN FETCH p.upstreamTasks " +
-           "WHERE p.agentGraph.id = :graphId")
+    @Query("SELECT p FROM PlanEntity p WHERE p.agentGraph.id = :graphId")
     List<PlanEntity> findByAgentGraphIdWithFiles(@Param("graphId") String graphId);
 
     /**
-     * Find plan with all relationships for detailed view.
+     * Find plan with all relations. Files and relationships are eagerly loaded via entity configuration.
      */
-    @Query("SELECT DISTINCT p FROM PlanEntity p " +
-           "LEFT JOIN FETCH p.files " +
-           "LEFT JOIN FETCH p.upstreamTasks " +
-           "LEFT JOIN FETCH p.downstreamTasks " +
-           "WHERE p.id = :planId")
+    @Query("SELECT p FROM PlanEntity p WHERE p.id = :planId")
     Optional<PlanEntity> findByIdWithAllRelations(@Param("planId") String planId);
 
     /**
-     * Batch find plans by IDs with files (optimized for bulk operations).
+     * Batch find plans by IDs. Files and relationships are eagerly loaded via entity configuration.
      */
-    @Query("SELECT DISTINCT p FROM PlanEntity p " +
-           "LEFT JOIN FETCH p.files " +
-           "WHERE p.id IN :planIds")
+    @Query("SELECT p FROM PlanEntity p WHERE p.id IN :planIds")
     List<PlanEntity> findByIdsWithFiles(@Param("planIds") List<String> planIds);
 }

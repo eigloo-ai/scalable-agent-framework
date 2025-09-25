@@ -228,8 +228,8 @@ services:
     volumes:
       # Mount entire frontend directory for live editing
       - ./services/frontend:/app
-      # Exclude node_modules to avoid conflicts with container's version
-      - /app/node_modules
+      # Named volume for node_modules to avoid conflicts with container's version
+      - frontend-node-modules:/app/node_modules
     develop:
       watch:
         - action: sync
@@ -258,3 +258,4 @@ volumes:
   postgres-data:
   pgadmin-data:
   kafka-data:
+  frontend-node-modules:

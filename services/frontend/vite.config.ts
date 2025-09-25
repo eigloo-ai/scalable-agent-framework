@@ -13,7 +13,7 @@ export default defineConfig({
     host: '0.0.0.0', // Allow external connections in Docker
     proxy: {
       '/api': {
-        target: 'http://graph-composer:8080',
+        target: 'http://localhost:8088', // Use external port for local development
         changeOrigin: true,
       },
     },

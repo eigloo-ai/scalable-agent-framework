@@ -6,6 +6,7 @@ import GraphCanvas, { type ToolType, type CanvasNode, type CanvasEdge } from '..
 import CodeEditor from '../components/editor/CodeEditor';
 import { useAppContext } from '../hooks/useAppContext';
 import { graphApi } from '../api/client';
+import { createDefaultFilesForPlan, createDefaultFilesForTask } from '../utils/templateGenerator';
 import type { AgentGraphDto } from '../types';
 
 const GraphEditor: React.FC = () => {
@@ -31,7 +32,14 @@ const GraphEditor: React.FC = () => {
 
   // Handle complete graph save (replaces individual file saves)
   const handleGraphSave = useCallback(async () => {
-    if (!currentGraph || !currentGraph.id) return;
+    console.log('handleGraphSave called');
+    console.log('currentGraph:', currentGraph);
+    console.log('currentGraph.id:', currentGraph?.id);
+    
+    if (!currentGraph || !currentGraph.id) {
+      console.log('Early return: currentGraph or currentGraph.id is falsy');
+      return;
+    }
 
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -42,21 +50,16 @@ const GraphEditor: React.FC = () => {
         ...currentGraph,
         plans: [...(currentGraph.plans || [])],
         tasks: [...(currentGraph.tasks || [])],
-        planToTasks: { ...currentGraph.planToTasks },
-        taskToPlan: { ...currentGraph.taskToPlan }
+        planToTasks: { ...currentGraph.planToTasks }
       };
       console.log('Validated graph:', validatedGraph);
       
       // Use POST for new graphs, PUT for existing graphs
       let updatedGraph: AgentGraphDto;
       if (currentGraph.id.startsWith('new-')) {
-        // Create new graph
-        const createRequest = {
-          name: validatedGraph.name,
-          tenantId: validatedGraph.tenantId
-        };
-        console.log('Creating new graph with:', createRequest);
-        updatedGraph = await graphApi.createGraph(createRequest);
+        // Create new graph with complete data
+        console.log('Creating new graph with complete data:', validatedGraph);
+        updatedGraph = await graphApi.createGraph(validatedGraph);
       } else {
         // Update existing graph
         console.log('Updating existing graph');
@@ -76,63 +79,118 @@ const GraphEditor: React.FC = () => {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [dispatch]);
+  }, [currentGraph, dispatch]);
 
   // Handle tool changes
   const handleToolChange = useCallback((tool: ToolType) => {
     setSelectedTool(tool);
   }, []);
 
-  // Handle node creation (placeholder - will be implemented in later tasks)
+  // Handle node creation with template files
   const handleNodeCreate = useCallback((node: Omit<CanvasNode, 'id' | 'selected'>) => {
     console.log('Node creation requested:', node);
-    console.log('Current graph before update:', currentGraph);
     
-    // Add the node to the current graph if it exists
-    if (currentGraph) {
-      // Create a completely new graph object to ensure React detects the change
-      const updatedGraph = {
-        ...currentGraph,
-        plans: [...(currentGraph.plans || [])],
-        tasks: [...(currentGraph.tasks || [])],
-        planToTasks: { ...currentGraph.planToTasks },
-        taskToPlan: { ...currentGraph.taskToPlan }
+    if (!currentGraph) return;
+    
+
+    
+    // Create a completely new graph object to ensure React detects the change
+    const updatedGraph = {
+      ...currentGraph,
+      plans: [...(currentGraph.plans || [])],
+      tasks: [...(currentGraph.tasks || [])],
+      planToTasks: { ...currentGraph.planToTasks },
+      taskToPlan: { ...currentGraph.taskToPlan }
+    };
+    
+    if (node.type === 'plan') {
+      // Create template files for the plan
+      const templateFiles = createDefaultFilesForPlan(node.label);
+      
+      // Add new plan to the graph
+      const newPlan = {
+        name: node.label,
+        label: node.label,
+        upstreamTaskIds: [],
+        files: templateFiles
       };
+      updatedGraph.plans.push(newPlan);
+      console.log('Added new plan with template files:', newPlan);
+    } else if (node.type === 'task') {
+      // Create template files for the task
+      const templateFiles = createDefaultFilesForTask(node.label);
       
-      if (node.type === 'plan') {
-        // Add new plan to the graph
-        const newPlan = {
-          name: node.label,
-          label: node.label,
-          upstreamTaskIds: [],
-          files: []
-        };
-        updatedGraph.plans.push(newPlan);
-        console.log('Added new plan:', newPlan);
-      } else if (node.type === 'task') {
-        // Add new task to the graph
-        const newTask = {
-          name: node.label,
-          label: node.label,
-          upstreamPlanId: '',
-          files: []
-        };
-        updatedGraph.tasks.push(newTask);
-        console.log('Added new task:', newTask);
-      }
-      
-      console.log('Updated graph:', updatedGraph);
-      
-      // Update the current graph in state
-      dispatch({ type: 'SET_CURRENT_GRAPH', payload: updatedGraph });
+      // Add new task to the graph
+      const newTask = {
+        name: node.label,
+        label: node.label,
+        upstreamPlanId: '',
+        files: templateFiles
+      };
+      updatedGraph.tasks.push(newTask);
+      console.log('Added new task with template files:', newTask);
     }
+    
+    // Update the current graph in state
+    dispatch({ type: 'SET_CURRENT_GRAPH', payload: updatedGraph });
   }, [currentGraph, dispatch]);
 
-  // Handle edge creation (placeholder - will be implemented in later tasks)
+  // Handle edge creation
   const handleEdgeCreate = useCallback((edge: Omit<CanvasEdge, 'id' | 'selected'>) => {
     console.log('Edge creation requested:', edge);
-    // TODO: Implement edge creation in backend integration
-  }, []);
+    
+    if (!currentGraph) return;
+    
+    // Create a completely new graph object to ensure React detects the change
+    const updatedGraph = {
+      ...currentGraph,
+      plans: [...(currentGraph.plans || [])],
+      tasks: [...(currentGraph.tasks || [])],
+      planToTasks: { ...currentGraph.planToTasks },
+      taskToPlan: { ...currentGraph.taskToPlan }
+    };
+    
+    // Find the from and to nodes
+    const fromNode = [...updatedGraph.plans, ...updatedGraph.tasks].find(n => n.name === edge.fromNodeId);
+    const toNode = [...updatedGraph.plans, ...updatedGraph.tasks].find(n => n.name === edge.toNodeId);
+    
+    if (!fromNode || !toNode) return;
+    
+    // Determine the relationship type based on node types
+    const fromIsPlan = updatedGraph.plans.some(p => p.name === edge.fromNodeId);
+    const toIsPlan = updatedGraph.plans.some(p => p.name === edge.toNodeId);
+    
+    if (fromIsPlan && !toIsPlan) {
+      // Plan to Task connection
+      if (!updatedGraph.planToTasks[edge.fromNodeId]) {
+        updatedGraph.planToTasks[edge.fromNodeId] = [];
+      }
+      if (!updatedGraph.planToTasks[edge.fromNodeId].includes(edge.toNodeId)) {
+        updatedGraph.planToTasks[edge.fromNodeId].push(edge.toNodeId);
+      }
+      
+      // Update task's upstream plan
+      updatedGraph.taskToPlan[edge.toNodeId] = edge.fromNodeId;
+      
+      // Update the task object
+      updatedGraph.tasks = updatedGraph.tasks.map(task => 
+        task.name === edge.toNodeId ? { ...task, upstreamPlanId: edge.fromNodeId } : task
+      );
+    } else if (!fromIsPlan && toIsPlan) {
+      // Task to Plan connection
+      const toPlan = updatedGraph.plans.find(p => p.name === edge.toNodeId);
+      if (toPlan && !toPlan.upstreamTaskIds.includes(edge.fromNodeId)) {
+        updatedGraph.plans = updatedGraph.plans.map(plan => 
+          plan.name === edge.toNodeId 
+            ? { ...plan, upstreamTaskIds: [...plan.upstreamTaskIds, edge.fromNodeId] }
+            : plan
+        );
+      }
+    }
+    
+    // Update the current graph in state
+    dispatch({ type: 'SET_CURRENT_GRAPH', payload: updatedGraph });
+  }, [currentGraph, dispatch]);
 
   // Handle node selection
   const handleNodeSelect = useCallback((nodeId: string) => {
@@ -140,11 +198,53 @@ const GraphEditor: React.FC = () => {
     // TODO: Expand corresponding folder in file explorer
   }, []);
 
-  // Handle node deletion (placeholder - will be implemented in later tasks)
+  // Handle node deletion
   const handleNodeDelete = useCallback((nodeId: string) => {
     console.log('Node deletion requested:', nodeId);
-    // TODO: Implement node deletion in backend integration
-  }, []);
+    
+    if (!currentGraph) return;
+    
+    // Create a completely new graph object to ensure React detects the change
+    const updatedGraph = {
+      ...currentGraph,
+      plans: [...(currentGraph.plans || [])],
+      tasks: [...(currentGraph.tasks || [])],
+      planToTasks: { ...currentGraph.planToTasks },
+      taskToPlan: { ...currentGraph.taskToPlan }
+    };
+    
+    // Remove the node from plans or tasks
+    updatedGraph.plans = updatedGraph.plans.filter(plan => plan.name !== nodeId);
+    updatedGraph.tasks = updatedGraph.tasks.filter(task => task.name !== nodeId);
+    
+    // Clean up relationships
+    delete updatedGraph.planToTasks[nodeId];
+    delete updatedGraph.taskToPlan[nodeId];
+    
+    // Remove references to this node in other relationships
+    Object.keys(updatedGraph.planToTasks).forEach(planId => {
+      updatedGraph.planToTasks[planId] = updatedGraph.planToTasks[planId].filter(taskId => taskId !== nodeId);
+    });
+    
+    Object.keys(updatedGraph.taskToPlan).forEach(taskId => {
+      if (updatedGraph.taskToPlan[taskId] === nodeId) {
+        delete updatedGraph.taskToPlan[taskId];
+        // Also update the task object
+        updatedGraph.tasks = updatedGraph.tasks.map(task => 
+          task.name === taskId ? { ...task, upstreamPlanId: '' } : task
+        );
+      }
+    });
+    
+    // Remove from upstream task IDs in plans
+    updatedGraph.plans = updatedGraph.plans.map(plan => ({
+      ...plan,
+      upstreamTaskIds: plan.upstreamTaskIds.filter(taskId => taskId !== nodeId)
+    }));
+    
+    // Update the current graph in state
+    dispatch({ type: 'SET_CURRENT_GRAPH', payload: updatedGraph });
+  }, [currentGraph, dispatch]);
 
   // Handle edge deletion (placeholder - will be implemented in later tasks)
   const handleEdgeDelete = useCallback((edgeId: string) => {
@@ -152,15 +252,14 @@ const GraphEditor: React.FC = () => {
     // TODO: Implement edge deletion in backend integration
   }, []);
 
-  // Handle node movement (placeholder - will be implemented in later tasks)
-  const handleNodeMove = useCallback((nodeId: string, x: number, y: number) => {
-    console.log('Node moved:', nodeId, x, y);
-    // TODO: Implement node position updates in backend integration
-  }, []);
+
 
   // Handle node updates (label changes, etc.)
   const handleNodeUpdate = useCallback((nodeId: string, updates: Partial<CanvasNode>) => {
     if (updates.label && currentGraph) {
+      const newName = updates.label.trim();
+      if (!newName || newName === nodeId) return; // No change or empty name
+      
       // Create a completely new graph object to ensure React detects the change
       const updatedGraph = {
         ...currentGraph,
@@ -170,18 +269,74 @@ const GraphEditor: React.FC = () => {
         taskToPlan: { ...currentGraph.taskToPlan }
       };
       
-      // Update plan label
-      updatedGraph.plans = updatedGraph.plans.map((plan: any) => 
-        plan.name === nodeId ? { ...plan, label: updates.label! } : plan
-      );
+      // Check if it's a plan or task being updated
+      const isPlan = updatedGraph.plans.some(p => p.name === nodeId);
+      const isTask = updatedGraph.tasks.some(t => t.name === nodeId);
       
-      // Update task label
-      updatedGraph.tasks = updatedGraph.tasks.map((task: any) => 
-        task.name === nodeId ? { ...task, label: updates.label! } : task
-      );
+      if (isPlan) {
+        // Update plan name and label
+        updatedGraph.plans = updatedGraph.plans.map((plan: any) => 
+          plan.name === nodeId ? { ...plan, name: newName, label: newName } : plan
+        );
+        
+        // Update planToTasks mapping (rename the key)
+        if (updatedGraph.planToTasks[nodeId]) {
+          updatedGraph.planToTasks[newName] = updatedGraph.planToTasks[nodeId];
+          delete updatedGraph.planToTasks[nodeId];
+        }
+        
+        // Update taskToPlan references
+        Object.keys(updatedGraph.taskToPlan).forEach(taskId => {
+          if (updatedGraph.taskToPlan[taskId] === nodeId) {
+            updatedGraph.taskToPlan[taskId] = newName;
+          }
+        });
+        
+        // Update task upstreamPlanId references
+        updatedGraph.tasks = updatedGraph.tasks.map((task: any) => 
+          task.upstreamPlanId === nodeId ? { ...task, upstreamPlanId: newName } : task
+        );
+        
+        // Update plan upstreamTaskIds references (plans can reference this plan as a task)
+        updatedGraph.plans = updatedGraph.plans.map((plan: any) => ({
+          ...plan,
+          upstreamTaskIds: plan.upstreamTaskIds.map((taskId: string) => 
+            taskId === nodeId ? newName : taskId
+          )
+        }));
+        
+      } else if (isTask) {
+        // Update task name and label
+        updatedGraph.tasks = updatedGraph.tasks.map((task: any) => 
+          task.name === nodeId ? { ...task, name: newName, label: newName } : task
+        );
+        
+        // Update taskToPlan mapping (rename the key)
+        if (updatedGraph.taskToPlan[nodeId]) {
+          updatedGraph.taskToPlan[newName] = updatedGraph.taskToPlan[nodeId];
+          delete updatedGraph.taskToPlan[nodeId];
+        }
+        
+        // Update planToTasks references
+        Object.keys(updatedGraph.planToTasks).forEach(planId => {
+          updatedGraph.planToTasks[planId] = updatedGraph.planToTasks[planId].map((taskId: string) =>
+            taskId === nodeId ? newName : taskId
+          );
+        });
+        
+        // Update plan upstreamTaskIds references
+        updatedGraph.plans = updatedGraph.plans.map((plan: any) => ({
+          ...plan,
+          upstreamTaskIds: plan.upstreamTaskIds.map((taskId: string) => 
+            taskId === nodeId ? newName : taskId
+          )
+        }));
+      }
       
       // Update the current graph in state
       dispatch({ type: 'SET_CURRENT_GRAPH', payload: updatedGraph });
+      
+      console.log(`Updated node ${nodeId} to ${newName}`);
     }
   }, [currentGraph, dispatch]);
 
@@ -190,7 +345,7 @@ const GraphEditor: React.FC = () => {
     const searchParams = new URLSearchParams(window.location.search);
     const graphName = searchParams.get('name');
     
-    if (graphName && !currentGraph) {
+    if (graphName && (!currentGraph || currentGraph.name !== graphName)) {
       // Create a new graph structure for the new graph
       const newGraph = {
         id: `new-${Date.now()}`,
@@ -208,7 +363,7 @@ const GraphEditor: React.FC = () => {
       console.log('Initializing new graph:', newGraph);
       dispatch({ type: 'SET_CURRENT_GRAPH', payload: newGraph });
     }
-  }, [dispatch]);
+  }, [currentGraph, dispatch]);
 
   // Debug: Log when currentGraph changes
   useEffect(() => {
@@ -222,7 +377,10 @@ const GraphEditor: React.FC = () => {
           <AppHeader />
           {currentGraph && (
             <button 
-              onClick={handleGraphSave}
+              onClick={() => {
+                console.log('Save Graph button clicked');
+                handleGraphSave();
+              }}
               disabled={state.isLoading}
               style={{
                 padding: '0.5rem 1rem',
@@ -251,7 +409,7 @@ const GraphEditor: React.FC = () => {
           onNodeSelect={handleNodeSelect}
           onNodeDelete={handleNodeDelete}
           onEdgeDelete={handleEdgeDelete}
-          onNodeMove={handleNodeMove}
+
           onNodeUpdate={handleNodeUpdate}
         />
       }

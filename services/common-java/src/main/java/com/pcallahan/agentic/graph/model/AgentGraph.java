@@ -22,7 +22,7 @@ import java.util.Set;
  * @param plans Map of plan names to Plan objects
  * @param tasks Map of task names to Task objects
  * @param planToTasks Map of plan names to sets of downstream task names
- * @param taskToPlan Map of task names to their upstream plan name
+ * @param taskToPlan Map of task names to upstream plan names
  */
 public record AgentGraph(
     String tenantId,

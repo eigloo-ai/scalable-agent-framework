@@ -9,7 +9,7 @@ WORKDIR /app
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 # Copy the built JAR file
-COPY target/graph_composer-*.jar app.jar
+COPY target/graph-composer-*.jar app.jar
 
 # Change ownership to the non-root user
 RUN chown -R appuser:appgroup /app

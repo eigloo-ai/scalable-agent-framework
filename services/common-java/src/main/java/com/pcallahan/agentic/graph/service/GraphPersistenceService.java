@@ -118,13 +118,16 @@ public class GraphPersistenceService {
 
     private void updatePlanTaskRelationships(AgentGraph graph, Map<String, PlanEntity> planEntityMap, Map<String, TaskEntity> taskEntityMap) {
         for (Plan plan : graph.plans().values()) {
-            List<TaskEntity> upstreamTasks = plan.upstreamTaskIds().stream()
-                    .map(taskEntityMap::get)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
             PlanEntity planEntity = planEntityMap.get(plan.name());
-            planEntity.setUpstreamTasks(upstreamTasks);
-            planRepository.save(planEntity);
+            
+            // Set upstreamPlan on each task that belongs to this plan
+            for (String taskId : plan.upstreamTaskIds()) {
+                TaskEntity taskEntity = taskEntityMap.get(taskId);
+                if (taskEntity != null) {
+                    taskEntity.setUpstreamPlan(planEntity);
+                    taskRepository.save(taskEntity);
+                }
+            }
         }
     }
 
@@ -136,13 +139,9 @@ public class GraphPersistenceService {
 
     private AgentGraph convertToAgentGraph(AgentGraphEntity entity) {
         List<PlanEntity> planEntities = planRepository.findByAgentGraphId(entity.getId());
-        Map<String, Plan> plans = planEntities.stream().collect(Collectors.toMap(
-                PlanEntity::getName, this::convertToPlan));
-
         List<TaskEntity> taskEntities = taskRepository.findByAgentGraphId(entity.getId());
-        Map<String, Task> tasks = taskEntities.stream().collect(Collectors.toMap(
-                TaskEntity::getName, this::convertToTask));
-
+        
+        // Build planToTasks mapping from foreign key relationships
         Map<String, Set<String>> planToTasks = new HashMap<>();
         Map<String, String> taskToPlan = new HashMap<>();
         for (TaskEntity taskEntity : taskEntities) {
@@ -153,11 +152,18 @@ public class GraphPersistenceService {
                 taskToPlan.put(taskName, planName);
             }
         }
+        
+        // Convert entities to domain objects
+        Map<String, Plan> plans = planEntities.stream().collect(Collectors.toMap(
+                PlanEntity::getName, planEntity -> convertToPlan(planEntity, planToTasks.getOrDefault(planEntity.getName(), new HashSet<>()))));
+
+        Map<String, Task> tasks = taskEntities.stream().collect(Collectors.toMap(
+                TaskEntity::getName, this::convertToTask));
+
         return AgentGraph.of(entity.getTenantId(), entity.getName(), plans, tasks, planToTasks, taskToPlan);
     }
 
-    private Plan convertToPlan(PlanEntity entity) {
-        Set<String> upstreamTaskIds = entity.getUpstreamTasks().stream().map(TaskEntity::getName).collect(Collectors.toSet());
+    private Plan convertToPlan(PlanEntity entity, Set<String> upstreamTaskIds) {
         return new Plan(entity.getName(), entity.getLabel(), Path.of(entity.getPlanSourcePath()), upstreamTaskIds, java.util.List.of());
     }
 
