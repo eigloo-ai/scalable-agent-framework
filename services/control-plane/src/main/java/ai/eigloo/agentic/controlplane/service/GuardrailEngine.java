@@ -1,14 +1,10 @@
-package com.pcallahan.agentic.controlplane.service;
+package ai.eigloo.agentic.controlplane.service;
 
-import com.pcallahan.agentic.common.TopicNames;
-import io.arl.proto.model.Common.TaskExecution;
-import io.arl.proto.model.Common.PlanExecution;
+import ai.eigloo.proto.model.Common.TaskExecution;
+import ai.eigloo.proto.model.Common.PlanExecution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.support.KafkaHeaders;
-import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;

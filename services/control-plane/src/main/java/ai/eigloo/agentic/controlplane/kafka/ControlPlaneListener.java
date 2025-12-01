@@ -1,13 +1,14 @@
-package com.pcallahan.agentic.controlplane.kafka;
+package ai.eigloo.agentic.controlplane.kafka;
 
-import com.pcallahan.agentic.common.ProtobufUtils;
-import com.pcallahan.agentic.common.TopicNames;
-import com.pcallahan.agentic.controlplane.service.ExecutionRouter;
-import io.arl.proto.model.Common.TaskExecution;
-import io.arl.proto.model.Common.PlanExecution;
+import ai.eigloo.agentic.common.ProtobufUtils;
+import ai.eigloo.agentic.common.TopicNames;
+import ai.eigloo.agentic.controlplane.service.ExecutionRouter;
+import ai.eigloo.proto.model.Common.TaskExecution;
+import ai.eigloo.proto.model.Common.PlanExecution;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -15,24 +16,22 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 /**
- * Kafka consumer for the Control Plane service.
+ * Kafka listener for the Control Plane service.
  * 
  * This consumer:
  * - Listens to data plane topics for execution messages (persisted-task-executions-{tenantId}, persisted-plan-executions-{tenantId})
  * - Processes execution messages for guardrail evaluation
  * - Routes messages to appropriate handlers via ExecutionRouter
- * 
- * Note: This class is redundant with ControlPlaneListener.java and should be removed.
- * The ControlPlaneListener already handles all the protobuf message processing and routing.
  */
 @Component
-public class ControlPlaneConsumer {
+public class ControlPlaneListener {
     
-    private static final Logger logger = LoggerFactory.getLogger(ControlPlaneConsumer.class);
+    private static final Logger logger = LoggerFactory.getLogger(ControlPlaneListener.class);
     
     private final ExecutionRouter executionRouter;
     
-    public ControlPlaneConsumer(ExecutionRouter executionRouter) {
+    @Autowired
+    public ControlPlaneListener(ExecutionRouter executionRouter) {
         this.executionRouter = executionRouter;
     }
     
@@ -45,7 +44,7 @@ public class ControlPlaneConsumer {
      */
     @KafkaListener(
         topics = "#{@kafkaTopicPatterns.persistedTaskExecutionsPattern}",
-        groupId = "control-plane-consumer-group",
+        groupId = "control-plane-persisted-task-executions",
         containerFactory = "tenantAwareKafkaListenerContainerFactory"
     )
     public void handleTaskExecution(
@@ -72,7 +71,7 @@ public class ControlPlaneConsumer {
                 return;
             }
             
-            // Route task execution for guardrail evaluation and processing
+            // Process task execution for guardrail evaluation and routing
             executionRouter.routeTaskExecution(taskExecution, tenantId);
             
             logger.info("Processed task execution protobuf message for tenant: {}", tenantId);
@@ -93,7 +92,7 @@ public class ControlPlaneConsumer {
      */
     @KafkaListener(
         topics = "#{@kafkaTopicPatterns.persistedPlanExecutionsPattern}",
-        groupId = "control-plane-consumer-group",
+        groupId = "control-plane-persisted-plan-executions",
         containerFactory = "tenantAwareKafkaListenerContainerFactory"
     )
     public void handlePlanExecution(
@@ -120,7 +119,7 @@ public class ControlPlaneConsumer {
                 return;
             }
             
-            // Route plan execution for guardrail evaluation and processing
+            // Process plan execution for guardrail evaluation and routing
             executionRouter.routePlanExecution(planExecution, tenantId);
             
             logger.info("Processed plan execution protobuf message for tenant: {}", tenantId);

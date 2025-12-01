@@ -1,7 +1,7 @@
-package com.pcallahan.agentic.controlplane.kafka;
+package ai.eigloo.agentic.controlplane.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pcallahan.agentic.common.TopicNames;
+import ai.eigloo.agentic.common.TopicNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;

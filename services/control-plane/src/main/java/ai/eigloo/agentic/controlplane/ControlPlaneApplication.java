@@ -1,4 +1,4 @@
-package com.pcallahan.agentic.controlplane;
+package ai.eigloo.agentic.controlplane;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

@@ -1,6 +1,6 @@
-package com.pcallahan.agentic.controlplane.service;
+package ai.eigloo.agentic.controlplane.service;
 
-import com.pcallahan.agentic.graph.model.Task;
+import ai.eigloo.agentic.graph.model.Task;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

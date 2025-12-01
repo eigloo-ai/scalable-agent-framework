@@ -1,4 +1,4 @@
-package com.pcallahan.agentic.controlplane.config;
+package ai.eigloo.agentic.controlplane.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;

@@ -1,12 +1,11 @@
-package com.pcallahan.agentic.controlplane.service;
+package ai.eigloo.agentic.controlplane.service;
 
-import com.pcallahan.agentic.common.TopicNames;
-import com.pcallahan.agentic.controlplane.kafka.ExecutorProducer;
-import com.pcallahan.agentic.graph.model.Task;
-import io.arl.proto.model.Common.TaskExecution;
-import io.arl.proto.model.Common.PlanExecution;
-import io.arl.proto.model.Common.PlanInput;
-import io.arl.proto.model.Common.TaskInput;
+import ai.eigloo.agentic.controlplane.kafka.ExecutorProducer;
+import ai.eigloo.agentic.graph.model.Task;
+import ai.eigloo.proto.model.Common.TaskExecution;
+import ai.eigloo.proto.model.Common.PlanExecution;
+import ai.eigloo.proto.model.Common.PlanInput;
+import ai.eigloo.proto.model.Common.TaskInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
