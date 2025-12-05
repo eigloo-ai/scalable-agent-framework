@@ -40,7 +40,7 @@ graph-bundle:
 # Logging configuration for tests
 logging:
   level:
-    com.pcallahan.agentic: DEBUG
+    ai.eigloo.agentic: DEBUG
     org.springframework.web: INFO
     org.hibernate: WARN
     org.springframework.boot.autoconfigure: ERROR

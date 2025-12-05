@@ -116,7 +116,7 @@ graph-bundle:
 
 logging:
   level:
-    com.pcallahan.agentic: DEBUG
+    ai.eigloo.agentic: DEBUG
     org.springframework.web.multipart: DEBUG
     org.springframework.scheduling: DEBUG
     com.github.dockerjava: INFO
