@@ -86,7 +86,7 @@ management:
 
 logging:
   level:
-    com.pcallahan.agentic: INFO
+    ai.eigloo.agentic: INFO
     org.springframework.web: INFO
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
