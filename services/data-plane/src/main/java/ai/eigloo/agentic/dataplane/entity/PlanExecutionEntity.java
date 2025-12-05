@@ -1,4 +1,4 @@
-package com.pcallahan.agentic.dataplane.entity;
+package ai.eigloo.agentic.dataplane.entity;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;

@@ -1,6 +1,6 @@
-package com.pcallahan.agentic.dataplane.repository;
+package ai.eigloo.agentic.dataplane.repository;
 
-import com.pcallahan.agentic.dataplane.entity.TaskResultEntity;
+import ai.eigloo.agentic.dataplane.entity.TaskResultEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

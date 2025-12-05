@@ -1,4 +1,4 @@
-package com.pcallahan.agentic.dataplane;
+package ai.eigloo.agentic.dataplane;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -15,7 +15,7 @@ import org.springframework.kafka.annotation.EnableKafka;
  * - Providing REST API endpoints for data access
  */
 @SpringBootApplication
-@EnableJpaRepositories(basePackages = "com.pcallahan.agentic.dataplane.repository")
+@EnableJpaRepositories(basePackages = "ai.eigloo.agentic.dataplane.repository")
 @EnableKafka
 public class DataPlaneApplication {
     

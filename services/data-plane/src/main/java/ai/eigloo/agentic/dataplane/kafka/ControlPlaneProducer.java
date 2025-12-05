@@ -1,9 +1,9 @@
-package com.pcallahan.agentic.dataplane.kafka;
+package ai.eigloo.agentic.dataplane.kafka;
 
-import com.pcallahan.agentic.common.TopicNames;
-import com.pcallahan.agentic.common.ProtobufUtils;
-import io.arl.proto.model.Common.TaskExecution;
-import io.arl.proto.model.Common.PlanExecution;
+import ai.eigloo.agentic.common.TopicNames;
+import ai.eigloo.agentic.common.ProtobufUtils;
+import ai.eigloo.proto.model.Common.TaskExecution;
+import ai.eigloo.proto.model.Common.PlanExecution;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

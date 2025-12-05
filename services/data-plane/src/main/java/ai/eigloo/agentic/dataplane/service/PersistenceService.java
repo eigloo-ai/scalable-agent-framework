@@ -1,17 +1,15 @@
-package com.pcallahan.agentic.dataplane.service;
+package ai.eigloo.agentic.dataplane.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.pcallahan.agentic.common.ProtobufUtils;
-import com.pcallahan.agentic.dataplane.entity.PlanExecutionEntity;
-import com.pcallahan.agentic.dataplane.entity.TaskExecutionEntity;
-import com.pcallahan.agentic.dataplane.entity.TaskResultEntity;
-import com.pcallahan.agentic.dataplane.repository.PlanExecutionRepository;
-import com.pcallahan.agentic.dataplane.repository.TaskExecutionRepository;
-import com.pcallahan.agentic.dataplane.repository.TaskResultRepository;
-import io.arl.proto.model.Common.PlanExecution;
-import io.arl.proto.model.Common.TaskExecution;
-import io.arl.proto.model.Common.TaskResult;
+import ai.eigloo.agentic.dataplane.entity.PlanExecutionEntity;
+import ai.eigloo.agentic.dataplane.entity.TaskExecutionEntity;
+import ai.eigloo.agentic.dataplane.entity.TaskResultEntity;
+import ai.eigloo.agentic.dataplane.repository.PlanExecutionRepository;
+import ai.eigloo.agentic.dataplane.repository.TaskExecutionRepository;
+import ai.eigloo.agentic.dataplane.repository.TaskResultRepository;
+import ai.eigloo.proto.model.Common.PlanExecution;
+import ai.eigloo.proto.model.Common.TaskExecution;
+import ai.eigloo.proto.model.Common.TaskResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -205,7 +203,7 @@ public class PersistenceService {
      * @param status the protobuf status
      * @return the JPA status enum
      */
-    private TaskExecutionEntity.ExecutionStatus convertStatus(io.arl.proto.model.Common.ExecutionStatus status) {
+    private TaskExecutionEntity.ExecutionStatus convertStatus(ai.eigloo.proto.model.Common.ExecutionStatus status) {
         return switch (status) {
             case EXECUTION_STATUS_PENDING -> TaskExecutionEntity.ExecutionStatus.EXECUTION_STATUS_PENDING;
             case EXECUTION_STATUS_RUNNING -> TaskExecutionEntity.ExecutionStatus.EXECUTION_STATUS_RUNNING;
@@ -221,7 +219,7 @@ public class PersistenceService {
      * @param status the protobuf status
      * @return the JPA status enum
      */
-    private PlanExecutionEntity.ExecutionStatus convertPlanStatus(io.arl.proto.model.Common.ExecutionStatus status) {
+    private PlanExecutionEntity.ExecutionStatus convertPlanStatus(ai.eigloo.proto.model.Common.ExecutionStatus status) {
         return switch (status) {
             case EXECUTION_STATUS_PENDING -> PlanExecutionEntity.ExecutionStatus.EXECUTION_STATUS_PENDING;
             case EXECUTION_STATUS_RUNNING -> PlanExecutionEntity.ExecutionStatus.EXECUTION_STATUS_RUNNING;

@@ -1,4 +1,4 @@
-package com.pcallahan.agentic.dataplane.entity;
+package ai.eigloo.agentic.dataplane.entity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
