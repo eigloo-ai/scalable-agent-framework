@@ -1,8 +1,7 @@
-package com.pcallahan.agentic.integration.config;
+package ai.eigloo.agentic.integration.config;
 
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -12,7 +11,7 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootConfiguration
 @EnableAutoConfiguration
 // @ComponentScan(basePackages = {
-//         "com.pcallahan.agentic"
+//         "ai.eigloo.agentic"
 // })
 @TestPropertySource(properties = {
         "spring.datasource.url=jdbc:tc:" + IntegrationTestConfig.POSTGRES_IMAGE + ":///" + IntegrationTestConfig.DATABASE_NAME,

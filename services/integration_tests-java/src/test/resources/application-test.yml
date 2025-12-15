@@ -45,7 +45,7 @@ spring:
 
 logging:
   level:
-    com.pcallahan.agentic: DEBUG
+    ai.eigloo.agentic: DEBUG
     org.apache.kafka: WARN
     org.springframework.kafka: WARN
     org.hibernate.SQL: DEBUG

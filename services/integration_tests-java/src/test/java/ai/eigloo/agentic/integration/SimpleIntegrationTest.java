@@ -1,6 +1,6 @@
-package com.pcallahan.agentic.integration;
+package ai.eigloo.agentic.integration;
 
-import com.pcallahan.agentic.integration.config.BaseIntegrationTest;
+import ai.eigloo.agentic.integration.config.BaseIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.slf4j.Logger;
