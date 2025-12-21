@@ -245,7 +245,7 @@ kafka:
 
 logging:
   level:
-    com.pcallahan.agentic: DEBUG
+    ai.eigloo.agentic: DEBUG
 ```
 
 ### Production Environment
@@ -263,7 +263,7 @@ kafka:
 
 logging:
   level:
-    com.pcallahan.agentic: INFO
+    ai.eigloo.agentic: INFO
 ```
 
 ## Step 7: Testing the Implementation

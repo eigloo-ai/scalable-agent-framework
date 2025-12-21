@@ -48,7 +48,7 @@ graph TB
 
 ### 1. REST API Controller
 
-**Location**: `com.pcallahan.agentic.graphbuilder.controller.GraphBundleController`
+**Location**: `controller.graphbuilder.ai.eigloo.agentic.GraphBundleController`
 
 **Endpoints**:
 - `POST /api/graph-bundle/upload` - Upload compressed bundle
@@ -78,7 +78,7 @@ public class ProcessingStatus {
 
 ### 2. Web Interface Controller
 
-**Location**: `com.pcallahan.agentic.graphbuilder.controller.GraphBundleWebController`
+**Location**: `controller.graphbuilder.ai.eigloo.agentic.GraphBundleWebController`
 
 **Endpoints**:
 - `GET /graph-bundle` - Serve upload page
@@ -90,7 +90,7 @@ The service layer is refactored into focused, single-responsibility services wit
 
 #### 3.1 Graph Builder Service (Orchestrator)
 
-**Location**: `com.pcallahan.agentic.graphbuilder.GraphBuilderService`
+**Location**: `graphbuilder.ai.eigloo.agentic.GraphBuilderService`
 
 **Responsibilities**: Core graph parsing and orchestration
 ```java
@@ -106,7 +106,7 @@ public class GraphBuilderService {
 
 #### 3.2 Bundle Processing Service
 
-**Location**: `com.pcallahan.agentic.graphbuilder.service.BundleProcessingService`
+**Location**: `service.graphbuilder.ai.eigloo.agentic.BundleProcessingService`
 
 **Responsibilities**: File upload, extraction, and validation
 ```java
@@ -121,7 +121,7 @@ public class BundleProcessingService {
 
 #### 3.3 Docker Image Service
 
-**Location**: `com.pcallahan.agentic.graphbuilder.service.DockerImageService`
+**Location**: `service.graphbuilder.ai.eigloo.agentic.DockerImageService`
 
 **Responsibilities**: Docker image building and management
 ```java
@@ -136,7 +136,7 @@ public class DockerImageService {
 
 #### 3.4 Graph Persistence Service
 
-**Location**: `com.pcallahan.agentic.graphbuilder.service.GraphPersistenceService`
+**Location**: `ai.eigloo.agentic.graphbuilder.service.GraphPersistenceService`
 
 **Responsibilities**: Database operations for graphs
 ```java
@@ -150,7 +150,7 @@ public class GraphPersistenceService {
 
 #### 3.5 Processing Status Service
 
-**Location**: `com.pcallahan.agentic.graphbuilder.service.ProcessingStatusService`
+**Location**: `service.graphbuilder.ai.eigloo.agentic.ProcessingStatusService`
 
 **Responsibilities**: Processing status tracking and management
 ```java
