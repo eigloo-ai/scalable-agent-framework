@@ -5,9 +5,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Entity representing a persisted agent graph with its metadata.
@@ -20,7 +25,7 @@ import java.util.List;
     @Index(name = "idx_agent_graph_status", columnList = "status")
 })
 public class AgentGraphEntity {
-
+Double
     @Id
     @Column(name = "id", length = 36)
     private String id;
@@ -48,12 +53,22 @@ public class AgentGraphEntity {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    // Relationships
-    @OneToMany(mappedBy = "agentGraph", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<PlanEntity> plans;
+    // Relationships - using cascade for single-transaction saves
+    @OneToMany(mappedBy = "agentGraph", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
+    @Fetch(FetchMode.SUBSELECT)
+    private List<PlanEntity> plans = new ArrayList<>();
 
-    @OneToMany(mappedBy = "agentGraph", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<TaskEntity> tasks;
+    @OneToMany(mappedBy = "agentGraph", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
+    @Fetch(FetchMode.SUBSELECT)
+    private List<TaskEntity> tasks = new ArrayList<>();
+
+    // Core graph structure - computed from relationships
+    @Transient
+    private Map<String, Set<String>> planToTasks;
+
+    // Reverse mapping - computed from planToTasks
+    @Transient
+    private Map<String, String> taskToPlan;
 
     // Default constructor for JPA
     public AgentGraphEntity() {}
@@ -137,7 +152,128 @@ public class AgentGraphEntity {
     }
 
     public void setTasks(List<TaskEntity> tasks) {
-        this.tasks = tasks;
+        this.tasks = tasks != null ? tasks : new ArrayList<>();
+    }
+
+    // Helper methods for managing plans and tasks with proper relationships
+    public void clearPlans() {
+        if (plans != null) {
+            plans.clear();
+        }
+    }
+
+    public void addPlan(PlanEntity plan) {
+        if (plan != null) {
+            if (plans == null) {
+                plans = new ArrayList<>();
+            }
+            plans.add(plan);
+            plan.setAgentGraph(this);
+        }
+    }
+
+    public void clearTasks() {
+        if (tasks != null) {
+            tasks.clear();
+        }
+    }
+
+    public void addTask(TaskEntity task) {
+        if (task != null) {
+            if (tasks == null) {
+                tasks = new ArrayList<>();
+            }
+            tasks.add(task);
+            task.setAgentGraph(this);
+        }
+    }
+
+    /**
+     * Replaces all plans with the provided list, maintaining proper relationships.
+     */
+    public void replacePlans(List<PlanEntity> newPlans) {
+        clearPlans();
+        if (newPlans != null) {
+            for (PlanEntity plan : newPlans) {
+                addPlan(plan);
+            }
+        }
+    }
+
+    /**
+     * Replaces all tasks with the provided list, maintaining proper relationships.
+     */
+    public void replaceTasks(List<TaskEntity> newTasks) {
+        clearTasks();
+        if (newTasks != null) {
+            for (TaskEntity task : newTasks) {
+                addTask(task);
+            }
+        }
+    }
+
+    public Map<String, Set<String>> getPlanToTasks() {
+        if (planToTasks == null) {
+            computePlanTaskMappings();
+        }
+        return planToTasks;
+    }
+
+    public void setPlanToTasks(Map<String, Set<String>> planToTasks) {
+        // This is now computed from relationships, so we don't allow direct setting
+        throw new UnsupportedOperationException("planToTasks is computed from JPA relationships and cannot be set directly");
+    }
+
+    public Map<String, String> getTaskToPlan() {
+        if (taskToPlan == null) {
+            computePlanTaskMappings();
+        }
+        return taskToPlan;
+    }
+
+    /**
+     * Computes the planToTasks and taskToPlan mappings from the foreign key relationships.
+     * This is called automatically when these mappings are first accessed.
+     */
+    private void computePlanTaskMappings() {
+        planToTasks = new java.util.HashMap<>();
+        taskToPlan = new java.util.HashMap<>();
+        
+        // Initialize empty sets for all plans
+        if (plans != null) {
+            for (PlanEntity plan : plans) {
+                planToTasks.put(plan.getName(), new java.util.HashSet<>());
+            }
+        }
+        
+        // Build mappings from task foreign key relationships
+        if (tasks != null) {
+            for (TaskEntity task : tasks) {
+                String taskName = task.getName();
+                
+                // Plan → Task relationship (plan feeds into task)
+                PlanEntity upstreamPlan = task.getUpstreamPlan();
+                if (upstreamPlan != null) {
+                    String planName = upstreamPlan.getName();
+                    planToTasks.get(planName).add(taskName);
+                }
+                
+                // Task → Plan relationship (task feeds into plan)
+                PlanEntity downstreamPlan = task.getDownstreamPlan();
+                if (downstreamPlan != null) {
+                    String downstreamPlanName = downstreamPlan.getName();
+                    taskToPlan.put(taskName, downstreamPlanName);
+                }
+            }
+        }
+    }
+
+    /**
+     * JPA callback to compute derived fields after loading from database.
+     */
+    @PostLoad
+    private void postLoad() {
+        computePlanTaskMappings();
     }
 
     @Override

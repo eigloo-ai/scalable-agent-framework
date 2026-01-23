@@ -58,3 +58,4 @@ design prompt.txt
 .idea.save.good
 **/mvnw
 foo
+server/gateway/tiny-gateway/

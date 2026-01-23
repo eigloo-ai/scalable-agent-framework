@@ -44,7 +44,11 @@ public record Task(String name, String label, Path taskSource, String upstreamPl
         if (taskSource == null) {
             throw new IllegalArgumentException("Task source cannot be null");
         }
-        if (upstreamPlanId == null || upstreamPlanId.trim().isEmpty()) {
+        // Allow null or empty upstream plan ID for orphaned tasks, convert to empty string
+        if (upstreamPlanId == null) {
+            upstreamPlanId = "";
+        } else if (upstreamPlanId.trim().isEmpty() && !upstreamPlanId.isEmpty()) {
+            // Whitespace-only strings are not allowed
             throw new IllegalArgumentException("Upstream plan ID cannot be null or empty");
         }
         if (files == null) {

@@ -120,7 +120,7 @@ public class ValidationServiceImpl implements ValidationService {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         
-        if (graph.getPlanToTasks() != null && graph.getTaskToPlan() != null) {
+        if (graph.getPlanToTasks() != null) {
             // Validate that plans only connect to tasks
             for (Map.Entry<String, Set<String>> entry : graph.getPlanToTasks().entrySet()) {
                 String planName = entry.getKey();
@@ -146,26 +146,21 @@ public class ValidationServiceImpl implements ValidationService {
                 }
             }
             
-            // Validate that tasks only connect to plans
-            for (Map.Entry<String, String> entry : graph.getTaskToPlan().entrySet()) {
-                String taskName = entry.getKey();
-                String connectedPlan = entry.getValue();
-                
-                // Check if task exists
-                boolean taskExists = graph.getTasks() != null && 
-                                   graph.getTasks().stream().anyMatch(t -> t.getName().equals(taskName));
-                
-                if (!taskExists) {
-                    errors.add("Task '" + taskName + "' referenced in connections but not found in graph");
-                    continue;
-                }
-                
-                // Check that connected node is a plan
-                boolean isPlan = graph.getPlans() != null && 
-                               graph.getPlans().stream().anyMatch(p -> p.getName().equals(connectedPlan));
-                
-                if (!isPlan) {
-                    errors.add("Task '" + taskName + "' is connected to '" + connectedPlan + "' which is not a plan");
+            // Validate that tasks have valid upstream plans using taskToPlan map
+            if (graph.getTasks() != null && graph.getTaskToPlan() != null) {
+                for (TaskDto task : graph.getTasks()) {
+                    String taskName = task.getName();
+                    String upstreamPlan = graph.getTaskToPlan().get(taskName);
+                    
+                    if (upstreamPlan != null && !upstreamPlan.isEmpty()) {
+                        // Check if the upstream plan exists
+                        boolean planExists = graph.getPlans() != null && 
+                                           graph.getPlans().stream().anyMatch(p -> p.getName().equals(upstreamPlan));
+                        
+                        if (!planExists) {
+                            errors.add("Task '" + taskName + "' is connected to '" + upstreamPlan + "' which is not a plan");
+                        }
+                    }
                 }
             }
         }
@@ -178,14 +173,15 @@ public class ValidationServiceImpl implements ValidationService {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         
-        if (graph.getTasks() != null && graph.getTaskToPlan() != null) {
+        if (graph.getTasks() != null) {
             for (TaskDto task : graph.getTasks()) {
                 String taskName = task.getName();
                 
-                // Check if task has exactly one upstream plan
-                String upstreamPlan = graph.getTaskToPlan().get(taskName);
+                // Check if task has exactly one upstream plan using taskToPlan map
+                final String upstreamPlan = graph.getTaskToPlan() != null ? 
+                    graph.getTaskToPlan().get(taskName) : null;
                 
-                if (upstreamPlan == null) {
+                if (upstreamPlan == null || upstreamPlan.isEmpty()) {
                     errors.add("Task '" + taskName + "' must have exactly one upstream plan");
                 } else {
                     // Verify the upstream plan exists

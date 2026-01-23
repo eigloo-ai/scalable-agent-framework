@@ -43,12 +43,32 @@
   position: relative;
   overflow: hidden;
   background-color: #fafafa;
+  cursor: crosshair;
 }
 
 .canvas-content canvas {
   display: block;
   width: 100%;
   height: 100%;
+  cursor: inherit;
+}
+
+/* Cursor styles for different tools */
+.graph-canvas[data-tool="select"] .canvas-content {
+  cursor: default;
+}
+
+.graph-canvas[data-tool="task"] .canvas-content,
+.graph-canvas[data-tool="plan"] .canvas-content {
+  cursor: crosshair;
+}
+
+.graph-canvas[data-tool="edge"] .canvas-content {
+  cursor: pointer;
+}
+
+.graph-canvas[data-tool="eraser"] .canvas-content {
+  cursor: not-allowed;
 }
 
 .validation-toolbar {
@@ -75,6 +95,7 @@
 .node-edit-input {
   position: absolute;
   background: white;
+  color: #333;
   border: 2px solid #2196f3;
   border-radius: 4px;
   padding: 4px 8px;
@@ -82,5 +103,7 @@
   font-family: Arial, sans-serif;
   pointer-events: auto;
   min-width: 80px;
+  text-align: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  outline: none;
 }

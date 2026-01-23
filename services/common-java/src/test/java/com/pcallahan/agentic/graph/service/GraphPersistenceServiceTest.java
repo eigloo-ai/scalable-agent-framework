@@ -82,8 +82,8 @@ class GraphPersistenceServiceTest {
         
         // Verify repository interactions
         verify(agentGraphRepository).save(any(AgentGraphEntity.class));
-        verify(planRepository, times(2)).save(any(PlanEntity.class)); // Once for creation, once for relationship update
-        verify(taskRepository).save(any(TaskEntity.class));
+        verify(planRepository, times(1)).save(any(PlanEntity.class)); // Once for creation
+        verify(taskRepository, times(2)).save(any(TaskEntity.class)); // Once for creation, once for relationship update
         
         // Verify graph entity creation
         ArgumentCaptor<AgentGraphEntity> graphCaptor = ArgumentCaptor.forClass(AgentGraphEntity.class);
@@ -206,7 +206,7 @@ class GraphPersistenceServiceTest {
         
         PlanEntity planEntity = new PlanEntity("plan-id", "test_plan", "Test Plan", "/plans/test_plan", graphEntity);
         TaskEntity taskEntity = new TaskEntity("task-id", "task1", "Task 1", "/tasks/task1", graphEntity, planEntity);
-        planEntity.setUpstreamTasks(List.of(taskEntity));
+        // Relationship is set via TaskEntity constructor (upstreamPlan parameter)
         
         when(agentGraphRepository.findById(graphId)).thenReturn(Optional.of(graphEntity));
         when(planRepository.findByAgentGraphId(graphId)).thenReturn(List.of(planEntity));

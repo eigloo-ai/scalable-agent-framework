@@ -63,15 +63,9 @@ public interface AgentGraphRepository extends JpaRepository<AgentGraphEntity, St
     List<AgentGraphEntity> findByStatusOrderByCreatedAtDesc(GraphStatus status);
 
     /**
-     * Find agent graph with all related entities using fetch joins for performance.
-     * This optimized query reduces N+1 query problems.
+     * Find agent graph with all relations. Plans, tasks, and files are eagerly loaded via entity configuration.
      */
-    @Query("SELECT DISTINCT g FROM AgentGraphEntity g " +
-           "LEFT JOIN FETCH g.plans p " +
-           "LEFT JOIN FETCH p.files pf " +
-           "LEFT JOIN FETCH g.tasks t " +
-           "LEFT JOIN FETCH t.files tf " +
-           "WHERE g.id = :graphId AND g.tenantId = :tenantId")
+    @Query("SELECT g FROM AgentGraphEntity g WHERE g.id = :graphId AND g.tenantId = :tenantId")
     Optional<AgentGraphEntity> findByIdAndTenantIdWithAllRelations(@Param("graphId") String graphId, 
                                                                    @Param("tenantId") String tenantId);
 

@@ -51,13 +51,13 @@ class TaskTest {
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Task source cannot be null");
         
-        assertThatThrownBy(() -> Task.of("test_task", testTaskPath, null))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Upstream plan ID cannot be null or empty");
+        // Null upstream plan ID is now converted to empty string (allowed for orphaned tasks)
+        Task taskWithNullUpstream = Task.of("test_task", testTaskPath, null);
+        assertThat(taskWithNullUpstream.upstreamPlanId()).isEqualTo("");
         
-        assertThatThrownBy(() -> Task.of("test_task", testTaskPath, ""))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Upstream plan ID cannot be null or empty");
+        // Empty upstream plan ID is allowed (for orphaned tasks)
+        Task taskWithEmptyUpstream = Task.of("test_task", testTaskPath, "");
+        assertThat(taskWithEmptyUpstream.upstreamPlanId()).isEqualTo("");
         
         assertThatThrownBy(() -> Task.of("test_task", testTaskPath, "   "))
             .isInstanceOf(IllegalArgumentException.class)

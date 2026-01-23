@@ -3,6 +3,8 @@ package com.pcallahan.agentic.graph.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,16 +46,13 @@ public class PlanEntity {
     @OneToMany(mappedBy = "upstreamPlan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TaskEntity> downstreamTasks = new ArrayList<>();
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "plan_upstream_tasks",
-        joinColumns = @JoinColumn(name = "plan_id"),
-        inverseJoinColumns = @JoinColumn(name = "task_id")
-    )
+    // Upstream tasks (tasks that feed into this plan)
+    @OneToMany(mappedBy = "downstreamPlan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TaskEntity> upstreamTasks = new ArrayList<>();
 
     // Relationship to ExecutorFiles
-    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
     private List<ExecutorFileEntity> files = new ArrayList<>();
 
     // Default constructor for JPA

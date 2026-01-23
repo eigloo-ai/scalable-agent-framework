@@ -1,6 +1,7 @@
 package com.pcallahan.agentic.graphcomposer.service;
 
 import com.pcallahan.agentic.graph.entity.AgentGraphEntity;
+import com.pcallahan.agentic.graph.entity.ExecutorFileEntity;
 import com.pcallahan.agentic.graph.entity.PlanEntity;
 import com.pcallahan.agentic.graph.entity.TaskEntity;
 import com.pcallahan.agentic.graph.repository.AgentGraphRepository;
@@ -15,8 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -113,14 +113,8 @@ public class GraphServiceImpl implements GraphService {
             existingGraph.setStatus(convertToEntityStatus(graphDto.getStatus()));
         }
         
-        // Save graph first to ensure it exists
-        AgentGraphEntity savedGraph = agentGraphRepository.save(existingGraph);
-        
-        // Update plans and their files
-        updatePlansAndFiles(savedGraph, graphDto.getPlans());
-        
-        // Update tasks and their files  
-        updateTasksAndFiles(savedGraph, graphDto.getTasks());
+        // Update plans and tasks using single-transaction cascading approach
+        AgentGraphEntity savedGraph = updateGraphWithCascading(existingGraph, graphDto);
         
         logger.info("Updated graph: {}", savedGraph.getId());
         
@@ -132,6 +126,10 @@ public class GraphServiceImpl implements GraphService {
         updatedDto.setStatus(convertToDtoStatus(savedGraph.getStatus()));
         updatedDto.setPlans(graphDto.getPlans());
         updatedDto.setTasks(graphDto.getTasks());
+        List<PlanDto> plans = graphDto.getPlans() != null ? graphDto.getPlans() : new ArrayList<>();
+        List<TaskDto> tasks = graphDto.getTasks() != null ? graphDto.getTasks() : new ArrayList<>();
+        updatedDto.setPlanToTasks(computePlanToTasks(plans, tasks));
+        updatedDto.setTaskToPlan(computeTaskToPlan(tasks));
         updatedDto.setCreatedAt(savedGraph.getCreatedAt());
         updatedDto.setUpdatedAt(savedGraph.getUpdatedAt());
         
@@ -211,12 +209,16 @@ public class GraphServiceImpl implements GraphService {
         List<TaskEntity> tasks = taskRepository.findByAgentGraphIdWithFiles(entity.getId());
         
         List<PlanDto> planDtos = plans.stream()
-                .map(this::convertPlanToDto)
+                .map(planEntity -> convertPlanToDto(planEntity, tasks))
                 .collect(Collectors.toList());
         
         List<TaskDto> taskDtos = tasks.stream()
-                .map(this::convertTaskToDto)
+                .map(taskEntity -> convertTaskToDto(taskEntity, plans))
                 .collect(Collectors.toList());
+        
+        // Compute planToTasks and taskToPlan mappings
+        Map<String, Set<String>> planToTasks = computePlanToTasks(planDtos, taskDtos);
+        Map<String, String> taskToPlan = computeTaskToPlan(taskDtos);
         
         return new AgentGraphDto(
                 entity.getId(),
@@ -225,8 +227,8 @@ public class GraphServiceImpl implements GraphService {
                 convertToDtoStatus(entity.getStatus()),
                 planDtos,
                 taskDtos,
-                null, // planToTasks mapping would be computed from relationships
-                null, // taskToPlan mapping would be computed from relationships
+                planToTasks,
+                taskToPlan,
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
@@ -237,12 +239,16 @@ public class GraphServiceImpl implements GraphService {
      */
     private AgentGraphDto convertToDtoOptimized(AgentGraphEntity entity) {
         List<PlanDto> planDtos = entity.getPlans().stream()
-                .map(this::convertPlanToDtoOptimized)
+                .map(planEntity -> convertPlanToDtoOptimized(planEntity, entity.getTasks()))
                 .collect(Collectors.toList());
         
         List<TaskDto> taskDtos = entity.getTasks().stream()
-                .map(this::convertTaskToDtoOptimized)
+                .map(taskEntity -> convertTaskToDtoOptimized(taskEntity, entity.getPlans()))
                 .collect(Collectors.toList());
+        
+        // Compute planToTasks and taskToPlan mappings
+        Map<String, Set<String>> planToTasks = computePlanToTasks(planDtos, taskDtos);
+        Map<String, String> taskToPlan = computeTaskToPlan(taskDtos);
         
         return new AgentGraphDto(
                 entity.getId(),
@@ -251,31 +257,39 @@ public class GraphServiceImpl implements GraphService {
                 convertToDtoStatus(entity.getStatus()),
                 planDtos,
                 taskDtos,
-                null, // planToTasks mapping would be computed from relationships
-                null, // taskToPlan mapping would be computed from relationships
+                planToTasks,
+                taskToPlan,
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );
     }
 
-    private PlanDto convertPlanToDto(PlanEntity entity) {
-        List<ExecutorFileDto> files = fileService.getPlanFiles(entity.getId());
+    private PlanDto convertPlanToDto(PlanEntity planEntity, List<TaskEntity> allTasks) {
+        List<ExecutorFileDto> files = fileService.getPlanFiles(planEntity.getId());
+        
+        // Find upstream tasks for this plan
+        Set<String> upstreamTaskIds = allTasks.stream()
+                .filter(task -> task.getUpstreamPlan() != null && planEntity.getName().equals(task.getUpstreamPlan().getName()))
+                .map(TaskEntity::getName)
+                .collect(Collectors.toSet());
         
         return new PlanDto(
-                entity.getName(),
-                entity.getLabel(),
-                null, // upstreamTaskIds would be computed from relationships
+                planEntity.getName(),
+                planEntity.getLabel(),
+                upstreamTaskIds,
                 files
         );
     }
 
-    private TaskDto convertTaskToDto(TaskEntity entity) {
-        List<ExecutorFileDto> files = fileService.getTaskFiles(entity.getId());
+    private TaskDto convertTaskToDto(TaskEntity taskEntity, List<PlanEntity> allPlans) {
+        List<ExecutorFileDto> files = fileService.getTaskFiles(taskEntity.getId());
+        
+        String upstreamPlanId = taskEntity.getUpstreamPlan() != null ? taskEntity.getUpstreamPlan().getName() : null;
         
         return new TaskDto(
-                entity.getName(),
-                entity.getLabel(),
-                null, // upstreamPlanId would be computed from relationships
+                taskEntity.getName(),
+                taskEntity.getLabel(),
+                upstreamPlanId,
                 files
         );
     }
@@ -283,15 +297,21 @@ public class GraphServiceImpl implements GraphService {
     /**
      * Optimized conversion when files are already loaded in the entity.
      */
-    private PlanDto convertPlanToDtoOptimized(PlanEntity entity) {
-        List<ExecutorFileDto> files = entity.getFiles().stream()
+    private PlanDto convertPlanToDtoOptimized(PlanEntity planEntity, List<TaskEntity> allTasks) {
+        List<ExecutorFileDto> files = planEntity.getFiles().stream()
                 .map(fileService::convertToDto)
                 .collect(Collectors.toList());
         
+        // Find upstream tasks for this plan
+        Set<String> upstreamTaskIds = allTasks.stream()
+                .filter(task -> task.getUpstreamPlan() != null && planEntity.getName().equals(task.getUpstreamPlan().getName()))
+                .map(TaskEntity::getName)
+                .collect(Collectors.toSet());
+        
         return new PlanDto(
-                entity.getName(),
-                entity.getLabel(),
-                null, // upstreamTaskIds would be computed from relationships
+                planEntity.getName(),
+                planEntity.getLabel(),
+                upstreamTaskIds,
                 files
         );
     }
@@ -299,15 +319,17 @@ public class GraphServiceImpl implements GraphService {
     /**
      * Optimized conversion when files are already loaded in the entity.
      */
-    private TaskDto convertTaskToDtoOptimized(TaskEntity entity) {
-        List<ExecutorFileDto> files = entity.getFiles().stream()
+    private TaskDto convertTaskToDtoOptimized(TaskEntity taskEntity, List<PlanEntity> allPlans) {
+        List<ExecutorFileDto> files = taskEntity.getFiles().stream()
                 .map(fileService::convertToDto)
                 .collect(Collectors.toList());
         
+        String upstreamPlanId = taskEntity.getUpstreamPlan() != null ? taskEntity.getUpstreamPlan().getName() : null;
+        
         return new TaskDto(
-                entity.getName(),
-                entity.getLabel(),
-                null, // upstreamPlanId would be computed from relationships
+                taskEntity.getName(),
+                taskEntity.getLabel(),
+                upstreamPlanId,
                 files
         );
     }
@@ -331,84 +353,176 @@ public class GraphServiceImpl implements GraphService {
     }
     
     /**
-     * Update plans and their associated files for a graph.
-     * This method replaces all existing plans with the provided ones.
+     * Updates the graph with plans and tasks using JPA cascading for single-transaction operation.
+     * This replaces the old multi-step approach with a single save operation.
      */
-    private void updatePlansAndFiles(AgentGraphEntity graph, List<PlanDto> planDtos) {
-        if (planDtos == null) {
-            return;
-        }
+    private AgentGraphEntity updateGraphWithCascading(AgentGraphEntity existingGraph, AgentGraphDto graphDto) {
+        // Create plan entities with files
+        List<PlanEntity> planEntities = createPlanEntitiesFromDtos(existingGraph, graphDto.getPlans());
         
-        // Delete existing plans (cascade will handle files)
-        planRepository.deleteByAgentGraphId(graph.getId());
+        // Create task entities with files and establish relationships
+        List<TaskEntity> taskEntities = createTaskEntitiesFromDtos(existingGraph, graphDto.getTasks(), planEntities);
         
-        // Create new plans with files
-        for (PlanDto planDto : planDtos) {
-            PlanEntity planEntity = new PlanEntity();
-            planEntity.setId(UUID.randomUUID().toString());
-            planEntity.setName(planDto.getName());
-            planEntity.setLabel(planDto.getLabel());
-            planEntity.setAgentGraph(graph);
-            
-            // Save plan first
-            PlanEntity savedPlan = planRepository.save(planEntity);
-            
-            // Create files for this plan
-            createFilesForPlan(savedPlan, planDto.getFiles());
-        }
+        // Replace plans and tasks using cascade operations
+        existingGraph.replacePlans(planEntities);
+        existingGraph.replaceTasks(taskEntities);
+        
+        // Establish task-plan relationships after all entities are created
+        establishTaskPlanRelationships(taskEntities, planEntities, graphDto);
+        
+        // Single save operation - JPA will cascade to save all plans, tasks, and files
+        return agentGraphRepository.save(existingGraph);
     }
     
     /**
-     * Update tasks and their associated files for a graph.
-     * This method replaces all existing tasks with the provided ones.
+     * Creates plan entities from DTOs with their associated files.
      */
-    private void updateTasksAndFiles(AgentGraphEntity graph, List<TaskDto> taskDtos) {
-        if (taskDtos == null) {
-            return;
+    private List<PlanEntity> createPlanEntitiesFromDtos(AgentGraphEntity graph, List<PlanDto> planDtos) {
+        List<PlanEntity> planEntities = new ArrayList<>();
+        
+        if (planDtos != null) {
+            for (PlanDto planDto : planDtos) {
+                PlanEntity planEntity = new PlanEntity();
+                planEntity.setId(UUID.randomUUID().toString());
+                planEntity.setName(planDto.getName());
+                planEntity.setLabel(planDto.getLabel());
+                planEntity.setAgentGraph(graph);
+                
+                // Create files for this plan
+                if (planDto.getFiles() != null) {
+                    for (ExecutorFileDto fileDto : planDto.getFiles()) {
+                        ExecutorFileEntity fileEntity = createFileEntity(fileDto, planEntity, null);
+                        planEntity.addFile(fileEntity);
+                    }
+                }
+                
+                planEntities.add(planEntity);
+            }
         }
         
-        // Delete existing tasks (cascade will handle files)
-        taskRepository.deleteByAgentGraphId(graph.getId());
-        
-        // Create new tasks with files
-        for (TaskDto taskDto : taskDtos) {
-            TaskEntity taskEntity = new TaskEntity();
-            taskEntity.setId(UUID.randomUUID().toString());
-            taskEntity.setName(taskDto.getName());
-            taskEntity.setLabel(taskDto.getLabel());
-            taskEntity.setAgentGraph(graph);
-            
-            // Save task first
-            TaskEntity savedTask = taskRepository.save(taskEntity);
-            
-            // Create files for this task
-            createFilesForTask(savedTask, taskDto.getFiles());
-        }
+        return planEntities;
     }
     
     /**
-     * Create files for a plan entity.
+     * Creates task entities from DTOs with their associated files.
      */
-    private void createFilesForPlan(PlanEntity plan, List<ExecutorFileDto> fileDtos) {
-        if (fileDtos == null || fileDtos.isEmpty()) {
-            return;
+    private List<TaskEntity> createTaskEntitiesFromDtos(AgentGraphEntity graph, List<TaskDto> taskDtos, List<PlanEntity> planEntities) {
+        List<TaskEntity> taskEntities = new ArrayList<>();
+        
+        if (taskDtos != null) {
+            for (TaskDto taskDto : taskDtos) {
+                TaskEntity taskEntity = new TaskEntity();
+                taskEntity.setId(UUID.randomUUID().toString());
+                taskEntity.setName(taskDto.getName());
+                taskEntity.setLabel(taskDto.getLabel());
+                taskEntity.setAgentGraph(graph);
+                
+                // Find upstream plan by name
+                if (taskDto.getUpstreamPlanId() != null && !taskDto.getUpstreamPlanId().isEmpty()) {
+                    PlanEntity upstreamPlan = planEntities.stream()
+                            .filter(p -> p.getName().equals(taskDto.getUpstreamPlanId()))
+                            .findFirst()
+                            .orElse(null);
+                    taskEntity.setUpstreamPlan(upstreamPlan);
+                }
+                
+                // Create files for this task
+                if (taskDto.getFiles() != null) {
+                    for (ExecutorFileDto fileDto : taskDto.getFiles()) {
+                        ExecutorFileEntity fileEntity = createFileEntity(fileDto, null, taskEntity);
+                        taskEntity.addFile(fileEntity);
+                    }
+                }
+                
+                taskEntities.add(taskEntity);
+            }
         }
         
-        for (ExecutorFileDto fileDto : fileDtos) {
-            fileService.updatePlanFile(plan.getId(), fileDto.getName(), fileDto.getContents());
-        }
+        return taskEntities;
     }
     
     /**
-     * Create files for a task entity.
+     * Establishes task-plan relationships based on the graph structure.
      */
-    private void createFilesForTask(TaskEntity task, List<ExecutorFileDto> fileDtos) {
-        if (fileDtos == null || fileDtos.isEmpty()) {
-            return;
+    private void establishTaskPlanRelationships(List<TaskEntity> taskEntities, List<PlanEntity> planEntities, AgentGraphDto graphDto) {
+        // Use the planToTasks and taskToPlan mappings to establish downstream relationships
+        if (graphDto.getTaskToPlan() != null) {
+            for (TaskEntity task : taskEntities) {
+                String downstreamPlanName = graphDto.getTaskToPlan().get(task.getName());
+                if (downstreamPlanName != null) {
+                    PlanEntity downstreamPlan = planEntities.stream()
+                            .filter(p -> p.getName().equals(downstreamPlanName))
+                            .findFirst()
+                            .orElse(null);
+                    task.setDownstreamPlan(downstreamPlan);
+                }
+            }
+        }
+    }
+    
+
+    
+    /**
+     * Creates an ExecutorFileEntity from a DTO for use in cascading operations.
+     */
+    private ExecutorFileEntity createFileEntity(ExecutorFileDto fileDto, PlanEntity plan, TaskEntity task) {
+        ExecutorFileEntity fileEntity = new ExecutorFileEntity();
+        fileEntity.setId(UUID.randomUUID().toString());
+        fileEntity.setName(fileDto.getName());
+        fileEntity.setContents(fileDto.getContents());
+        fileEntity.setCreationDate(LocalDateTime.now());
+        fileEntity.setVersion("1.0");
+        
+        if (plan != null) {
+            fileEntity.setPlan(plan);
+        }
+        if (task != null) {
+            fileEntity.setTask(task);
         }
         
-        for (ExecutorFileDto fileDto : fileDtos) {
-            fileService.updateTaskFile(task.getId(), fileDto.getName(), fileDto.getContents());
+        return fileEntity;
+    }
+    
+    /**
+     * Compute planToTasks mapping from DTOs.
+     */
+    private Map<String, Set<String>> computePlanToTasks(List<PlanDto> planDtos, List<TaskDto> taskDtos) {
+        Map<String, Set<String>> planToTasks = new HashMap<>();
+        
+        if (planDtos != null) {
+            // Initialize all plans with empty sets
+            for (PlanDto plan : planDtos) {
+                planToTasks.put(plan.getName(), new HashSet<>());
+            }
         }
+        
+        if (taskDtos != null) {
+            // Add tasks to their upstream plans
+            for (TaskDto task : taskDtos) {
+                if (task.getUpstreamPlanId() != null) {
+                    planToTasks.computeIfAbsent(task.getUpstreamPlanId(), k -> new HashSet<>())
+                              .add(task.getName());
+                }
+            }
+        }
+        
+        return planToTasks;
+    }
+    
+    /**
+     * Compute taskToPlan mapping from DTOs.
+     */
+    private Map<String, String> computeTaskToPlan(List<TaskDto> taskDtos) {
+        Map<String, String> taskToPlan = new HashMap<>();
+        
+        if (taskDtos != null) {
+            for (TaskDto task : taskDtos) {
+                if (task.getUpstreamPlanId() != null) {
+                    taskToPlan.put(task.getName(), task.getUpstreamPlanId());
+                }
+            }
+        }
+        
+        return taskToPlan;
     }
 }

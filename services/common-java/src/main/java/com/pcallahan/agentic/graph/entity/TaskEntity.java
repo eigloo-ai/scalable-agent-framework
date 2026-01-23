@@ -3,6 +3,8 @@ package com.pcallahan.agentic.graph.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,12 +48,14 @@ public class TaskEntity {
     @JoinColumn(name = "upstream_plan_id")
     private PlanEntity upstreamPlan;
 
-    // Relationship to downstream plans
-    @ManyToMany(mappedBy = "upstreamTasks", fetch = FetchType.LAZY)
-    private List<PlanEntity> downstreamPlans = new ArrayList<>();
+    // Relationship to downstream plan (Task → Plan)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "downstream_plan_id")
+    private PlanEntity downstreamPlan;
 
     // Relationship to ExecutorFiles
-    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
     private List<ExecutorFileEntity> files = new ArrayList<>();
 
     // Default constructor for JPA
@@ -66,6 +70,19 @@ public class TaskEntity {
         this.taskSource = taskSource;
         this.agentGraph = agentGraph;
         this.upstreamPlan = upstreamPlan;
+        this.downstreamPlan = null; // Will be set via relationships
+    }
+
+    // Full constructor for creating new entities with both plans
+    public TaskEntity(String id, String name, String label, String taskSource, 
+                     AgentGraphEntity agentGraph, PlanEntity upstreamPlan, PlanEntity downstreamPlan) {
+        this.id = id;
+        this.name = name;
+        this.label = label;
+        this.taskSource = taskSource;
+        this.agentGraph = agentGraph;
+        this.upstreamPlan = upstreamPlan;
+        this.downstreamPlan = downstreamPlan;
     }
 
     // Getters and setters
@@ -117,12 +134,12 @@ public class TaskEntity {
         this.upstreamPlan = upstreamPlan;
     }
 
-    public List<PlanEntity> getDownstreamPlans() {
-        return downstreamPlans;
+    public PlanEntity getDownstreamPlan() {
+        return downstreamPlan;
     }
 
-    public void setDownstreamPlans(List<PlanEntity> downstreamPlans) {
-        this.downstreamPlans = downstreamPlans != null ? downstreamPlans : new ArrayList<>();
+    public void setDownstreamPlan(PlanEntity downstreamPlan) {
+        this.downstreamPlan = downstreamPlan;
     }
 
     public List<ExecutorFileEntity> getFiles() {

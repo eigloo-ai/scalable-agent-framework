@@ -31,6 +31,11 @@ public interface TaskRepository extends JpaRepository<TaskEntity, String> {
     List<TaskEntity> findByUpstreamPlanId(String planId);
 
     /**
+     * Find all tasks for a specific downstream plan.
+     */
+    List<TaskEntity> findByDownstreamPlanId(String planId);
+
+    /**
      * Delete all tasks for a specific agent graph.
      */
     void deleteByAgentGraphId(String graphId);
@@ -41,37 +46,32 @@ public interface TaskRepository extends JpaRepository<TaskEntity, String> {
     Optional<TaskEntity> findByIdAndAgentGraphId(String id, String graphId);
 
     /**
-     * Find all tasks for a graph with files eagerly loaded (optimized query).
+     * Find all tasks for a graph. Files and relationships are eagerly loaded via entity configuration.
      */
-    @Query("SELECT DISTINCT t FROM TaskEntity t " +
-           "LEFT JOIN FETCH t.files " +
-           "LEFT JOIN FETCH t.upstreamPlan " +
-           "WHERE t.agentGraph.id = :graphId")
+    @Query("SELECT t FROM TaskEntity t WHERE t.agentGraph.id = :graphId")
     List<TaskEntity> findByAgentGraphIdWithFiles(@Param("graphId") String graphId);
 
     /**
-     * Find task with all relationships for detailed view.
+     * Find task with all relations. Files and relationships are eagerly loaded via entity configuration.
      */
-    @Query("SELECT DISTINCT t FROM TaskEntity t " +
-           "LEFT JOIN FETCH t.files " +
-           "LEFT JOIN FETCH t.upstreamPlan " +
-           "LEFT JOIN FETCH t.downstreamPlans " +
-           "WHERE t.id = :taskId")
+    @Query("SELECT t FROM TaskEntity t WHERE t.id = :taskId")
     Optional<TaskEntity> findByIdWithAllRelations(@Param("taskId") String taskId);
 
     /**
-     * Batch find tasks by IDs with files (optimized for bulk operations).
+     * Batch find tasks by IDs. Files and relationships are eagerly loaded via entity configuration.
      */
-    @Query("SELECT DISTINCT t FROM TaskEntity t " +
-           "LEFT JOIN FETCH t.files " +
-           "WHERE t.id IN :taskIds")
+    @Query("SELECT t FROM TaskEntity t WHERE t.id IN :taskIds")
     List<TaskEntity> findByIdsWithFiles(@Param("taskIds") List<String> taskIds);
 
     /**
-     * Find tasks by upstream plan with files loaded.
+     * Find tasks by upstream plan. Files and relationships are eagerly loaded via entity configuration.
      */
-    @Query("SELECT DISTINCT t FROM TaskEntity t " +
-           "LEFT JOIN FETCH t.files " +
-           "WHERE t.upstreamPlan.id = :planId")
+    @Query("SELECT t FROM TaskEntity t WHERE t.upstreamPlan.id = :planId")
     List<TaskEntity> findByUpstreamPlanIdWithFiles(@Param("planId") String planId);
+
+    /**
+     * Find tasks by downstream plan. Files and relationships are eagerly loaded via entity configuration.
+     */
+    @Query("SELECT t FROM TaskEntity t WHERE t.downstreamPlan.id = :planId")
+    List<TaskEntity> findByDownstreamPlanIdWithFiles(@Param("planId") String planId);
 }

@@ -322,6 +322,10 @@ common-java-clean:
 	@echo "Cleaning common-java with Maven..."
 	@cd services/common-java && mvn clean
 
+common-java-test:
+	@echo "Cleaning common-java with Maven..."
+	@cd services/common-java && mvn test -q
+
 # Individual Maven build targets for common-java and admin-java
 common-java-build:
 	@echo "Building common-java with Maven..."
@@ -439,9 +443,9 @@ data-plane-docker-logs:
 	@echo "Viewing data-plane service logs..."
 	@docker-compose logs -f data-plane
 
-# Complete graph_composer clean, build, and deploy pipeline
-graph-composer-docker-up: common-java-clean graph_composer-clean common-java-build graph_composer-build
-	@echo "Stopping graph_composer service with docker-compose..."
+# Complete graph-composer clean, build, and deploy pipeline
+graph-composer-docker-up: common-java-clean graph-composer-clean common-java-build graph-composer-build
+	@echo "Stopping graph-composer service with docker-compose..."
 	@docker-compose stop graph-composer || true
 	@echo "Removing graph-composer service image..."
 	@docker rmi scalable-agent-framework_graph-composer || true
@@ -450,7 +454,7 @@ graph-composer-docker-up: common-java-clean graph_composer-clean common-java-bui
 	@docker-compose build --no-cache graph-composer
 	@echo "Starting graph-composer service with docker-compose..."
 	@docker-compose up -d graph-composer
-	@echo "Graph_composer clean, build, and deploy pipeline completed successfully!"
+	@echo "Graph-composer clean, build, and deploy pipeline completed successfully!"
 
 graph-composer-docker-logs:
 	@echo "Viewing graph-composer service logs..."
@@ -477,7 +481,7 @@ frontend-docker-up: frontend-clean frontend-build
 	@docker-compose stop frontend || true
 	@docker-compose rm -f frontend || true
 	@docker-compose build --no-cache frontend
-	@docker-compose up --watch frontend
+	@docker-compose up -d frontend
 	@echo "Frontend development server rebuilt and restarted successfully!"
 
 # Show help for specific target

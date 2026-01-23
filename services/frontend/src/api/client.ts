@@ -167,8 +167,8 @@ export const graphApi = {
   getGraph: (graphId: string, tenantId: string): Promise<AgentGraphDto> =>
     withRetry(() => apiClient.get(`/graphs/${graphId}?tenantId=${tenantId}`)),
 
-  createGraph: (request: CreateGraphRequest): Promise<AgentGraphDto> =>
-    withRetry(() => apiClient.post('/graphs', request)),
+  createGraph: (graph: Omit<AgentGraphDto, 'id' | 'createdAt' | 'updatedAt'>): Promise<AgentGraphDto> =>
+    withRetry(() => apiClient.post('/graphs', graph)),
 
   updateGraph: (
     graphId: string,
