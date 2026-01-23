@@ -22,7 +22,7 @@ graph-bundle:
 
 logging:
   level:
-    com.pcallahan.agentic: INFO
+    ai.eigloo.agentic: INFO
     root: INFO
 
 server:

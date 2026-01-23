@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package io.arl.proto.model;
+package ai.eigloo.proto.model;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/any.proto";
@@ -51,7 +51,7 @@ enum ExecutionStatus {
 // PlanResult represents the output of a Plan execution
 message PlanResult {
   // Upstream TaskResult objects that led to this plan decision
-  repeated io.arl.proto.model.TaskResult upstream_tasks_results = 1;
+  repeated ai.eigloo.proto.model.TaskResult upstream_tasks_results = 1;
 
   // Names of the next tasks to execute
   repeated string next_task_names = 2;
@@ -63,7 +63,7 @@ message PlanResult {
 // PlanExecution represents a single Plan execution with metadata
 message PlanExecution {
   // Common execution metadata
-  io.arl.proto.model.ExecutionHeader header = 1;
+  ai.eigloo.proto.model.ExecutionHeader header = 1;
 
   // IDs of parent task executions
   repeated string parent_task_exec_ids = 2;
@@ -84,7 +84,7 @@ message PlanInput {
   string plan_name = 2;
 
   // Task executions that provide input to this plan
-  repeated io.arl.proto.model.TaskExecution task_executions = 3;
+  repeated ai.eigloo.proto.model.TaskExecution task_executions = 3;
 }
 
 // TaskInput represents the input data for a Task execution
@@ -96,7 +96,7 @@ message TaskInput {
   string task_name = 2;
 
   // Plan execution that provides input to this task
-  io.arl.proto.model.PlanExecution plan_execution = 3;
+  ai.eigloo.proto.model.PlanExecution plan_execution = 3;
 }
 
 
@@ -129,7 +129,7 @@ message TaskResult {
 // TaskExecution represents a single Task execution with metadata
 message TaskExecution {
   // Common execution metadata
-  io.arl.proto.model.ExecutionHeader header = 1;
+  ai.eigloo.proto.model.ExecutionHeader header = 1;
 
   // Execution ID of the parent/upstream PlanExecution.exec_id
   string parent_plan_exec_id = 2;

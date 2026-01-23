@@ -50,7 +50,7 @@ spring:
 
 logging:
   level:
-    com.pcallahan.agentic: DEBUG
+    ai.eigloo.agentic: DEBUG
     org.apache.kafka: INFO
     org.springframework.kafka: INFO
     org.flywaydb.core: INFO

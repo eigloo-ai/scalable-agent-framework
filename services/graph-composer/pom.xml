@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.pcallahan.agentic</groupId>
+        <groupId>ai.eigloo.agentic</groupId>
         <artifactId>scalable-agent-framework</artifactId>
         <version>1.0.0</version>
         <relativePath>../../pom.xml</relativePath>
@@ -65,7 +65,7 @@
 
         <!-- Common module -->
         <dependency>
-            <groupId>com.pcallahan.agentic</groupId>
+            <groupId>ai.eigloo.agentic</groupId>
             <artifactId>common-java</artifactId>
             <version>${common-java.version}</version>
         </dependency>
@@ -152,7 +152,7 @@
                         <configuration>
                             <artifactItems>
                                 <artifactItem>
-                                    <groupId>com.pcallahan.agentic</groupId>
+                                    <groupId>ai.eigloo.agentic</groupId>
                                     <artifactId>common-java</artifactId>
                                     <version>${common-java.version}</version>
                                     <type>jar</type>

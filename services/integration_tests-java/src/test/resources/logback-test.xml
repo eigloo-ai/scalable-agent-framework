@@ -26,7 +26,7 @@
     </root>
     
     <!-- Application-specific loggers -->
-    <logger name="com.pcallahan.agentic" level="INFO" additivity="false">
+    <logger name="ai.eigloo.agentic" level="INFO" additivity="false">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </logger>
