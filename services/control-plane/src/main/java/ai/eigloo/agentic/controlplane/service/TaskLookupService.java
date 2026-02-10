@@ -1,55 +1,95 @@
 package ai.eigloo.agentic.controlplane.service;
 
-import ai.eigloo.agentic.graph.model.Task;
+import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
+import ai.eigloo.agentic.graph.entity.GraphStatus;
+import ai.eigloo.agentic.graph.entity.TaskEntity;
+import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 /**
- * Service for looking up task metadata by task names.
- * 
- * This service is responsible for retrieving task information from the graph/database
- * based on task names. Currently implemented as a stub that returns mock data.
- * 
- * TODO: Replace with actual graph/database lookup logic
+ * Service for graph-backed plan/task relationship lookups.
  */
 @Service
 public class TaskLookupService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(TaskLookupService.class);
-    
-    /**
-     * Look up tasks by their names for a specific tenant.
-     * 
-     * @param taskNames list of task names to look up
-     * @param tenantId the tenant identifier
-     * @return list of Task objects with metadata
-     */
-    public List<Task> lookupTasksByNames(List<String> taskNames, String tenantId) {
-        logger.info("Looking up {} tasks for tenant {}: {}", taskNames.size(), tenantId, taskNames);
-        
-        try {
-            // TODO: Replace with actual graph/database lookup logic
-            // For now, return mock Task objects with the provided names
-            List<Task> tasks = taskNames.stream()
-                .map(taskName -> {
-                    // Create mock task with default values
-                    Path mockTaskSource = Path.of("/mock/task/source/" + taskName);
-                    String mockUpstreamPlanId = "mock-upstream-plan-" + taskName;
-                    return new Task(taskName, taskName, mockTaskSource, mockUpstreamPlanId, List.of());
-                })
-                .collect(Collectors.toList());
-            
-            logger.debug("Successfully looked up {} tasks for tenant {}", tasks.size(), tenantId);
-            return tasks;
-            
-        } catch (Exception e) {
-            logger.error("Failed to lookup tasks for tenant {}: {}", tenantId, e.getMessage(), e);
-            throw new RuntimeException("Task lookup failed for tenant " + tenantId, e);
-        }
+
+    private final AgentGraphRepository agentGraphRepository;
+
+    public TaskLookupService(AgentGraphRepository agentGraphRepository) {
+        this.agentGraphRepository = agentGraphRepository;
     }
-} 
+
+    /**
+     * Resolve task names from plan output against the graph model.
+     */
+    public List<String> lookupExecutableTaskNames(
+            List<String> taskNames,
+            String tenantId,
+            String graphId,
+            String upstreamPlanName) {
+        AgentGraphEntity graph = resolveGraph(tenantId, graphId);
+        LinkedHashSet<String> uniqueTaskNames = new LinkedHashSet<>(taskNames);
+        List<String> resolvedTaskNames = new ArrayList<>();
+
+        for (String taskName : uniqueTaskNames) {
+            Optional<TaskEntity> matchingTask = graph.getTasks().stream()
+                    .filter(task -> taskName.equals(task.getName()))
+                    .filter(task -> {
+                        if (upstreamPlanName == null || upstreamPlanName.isBlank()) {
+                            return true;
+                        }
+                        return task.getUpstreamPlan() != null
+                                && upstreamPlanName.equals(task.getUpstreamPlan().getName());
+                    })
+                    .findFirst();
+
+            if (matchingTask.isPresent()) {
+                resolvedTaskNames.add(taskName);
+            } else {
+                logger.warn(
+                        "Task '{}' is not executable in graph {} for upstream plan '{}'",
+                        taskName, graph.getId(), upstreamPlanName);
+            }
+        }
+
+        return resolvedTaskNames;
+    }
+
+    /**
+     * Resolve downstream plan name for a completed task.
+     */
+    public Optional<String> lookupDownstreamPlanName(String taskName, String tenantId, String graphId) {
+        AgentGraphEntity graph = resolveGraph(tenantId, graphId);
+        return graph.getTasks().stream()
+                .filter(task -> taskName.equals(task.getName()))
+                .map(TaskEntity::getDownstreamPlan)
+                .filter(plan -> plan != null && plan.getName() != null && !plan.getName().isBlank())
+                .map(plan -> plan.getName())
+                .findFirst();
+    }
+
+    private AgentGraphEntity resolveGraph(String tenantId, String graphId) {
+        if (graphId != null && !graphId.isBlank()) {
+            return agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Graph '" + graphId + "' not found for tenant " + tenantId));
+        }
+
+        List<AgentGraphEntity> runningGraphs =
+                agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(tenantId, GraphStatus.RUNNING);
+        if (!runningGraphs.isEmpty()) {
+            logger.warn("Falling back to latest running graph for tenant {} because graph_id was missing", tenantId);
+            return runningGraphs.get(0);
+        }
+
+        throw new IllegalArgumentException("No running graph found for tenant " + tenantId);
+    }
+}
