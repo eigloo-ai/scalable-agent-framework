@@ -277,9 +277,9 @@ public class GraphServiceImpl implements GraphService {
     private PlanDto convertPlanToDto(PlanEntity planEntity, List<TaskEntity> allTasks) {
         List<ExecutorFileDto> files = fileService.getPlanFiles(planEntity.getId());
         
-        // Find upstream tasks for this plan
+        // Find tasks that feed into this plan (Task -> Plan relationships)
         Set<String> upstreamTaskIds = allTasks.stream()
-                .filter(task -> task.getUpstreamPlan() != null && planEntity.getName().equals(task.getUpstreamPlan().getName()))
+                .filter(task -> task.getDownstreamPlan() != null && planEntity.getName().equals(task.getDownstreamPlan().getName()))
                 .map(TaskEntity::getName)
                 .collect(Collectors.toSet());
         
@@ -312,9 +312,9 @@ public class GraphServiceImpl implements GraphService {
                 .map(fileService::convertToDto)
                 .collect(Collectors.toList());
         
-        // Find upstream tasks for this plan
+        // Find tasks that feed into this plan (Task -> Plan relationships)
         Set<String> upstreamTaskIds = allTasks.stream()
-                .filter(task -> task.getUpstreamPlan() != null && planEntity.getName().equals(task.getUpstreamPlan().getName()))
+                .filter(task -> task.getDownstreamPlan() != null && planEntity.getName().equals(task.getDownstreamPlan().getName()))
                 .map(TaskEntity::getName)
                 .collect(Collectors.toSet());
         
@@ -452,19 +452,32 @@ public class GraphServiceImpl implements GraphService {
     }
     
     /**
-     * Establishes task-plan relationships based on the graph structure.
+     * Establishes Task -> Plan relationships using each plan's upstreamTaskIds.
      */
     private void establishTaskPlanRelationships(List<TaskEntity> taskEntities, List<PlanEntity> planEntities, AgentGraphDto graphDto) {
-        // Use the planToTasks and taskToPlan mappings to establish downstream relationships
-        if (graphDto.getTaskToPlan() != null) {
-            for (TaskEntity task : taskEntities) {
-                String downstreamPlanName = graphDto.getTaskToPlan().get(task.getName());
-                if (downstreamPlanName != null) {
-                    PlanEntity downstreamPlan = planEntities.stream()
-                            .filter(p -> p.getName().equals(downstreamPlanName))
-                            .findFirst()
-                            .orElse(null);
-                    task.setDownstreamPlan(downstreamPlan);
+        if (graphDto.getPlans() == null) {
+            return;
+        }
+
+        Map<String, TaskEntity> tasksByName = taskEntities.stream()
+                .collect(Collectors.toMap(TaskEntity::getName, task -> task));
+        Map<String, PlanEntity> plansByName = planEntities.stream()
+                .collect(Collectors.toMap(PlanEntity::getName, plan -> plan));
+
+        for (PlanDto planDto : graphDto.getPlans()) {
+            if (planDto.getUpstreamTaskIds() == null || planDto.getUpstreamTaskIds().isEmpty()) {
+                continue;
+            }
+
+            PlanEntity downstreamPlan = plansByName.get(planDto.getName());
+            if (downstreamPlan == null) {
+                continue;
+            }
+
+            for (String upstreamTaskName : planDto.getUpstreamTaskIds()) {
+                TaskEntity upstreamTask = tasksByName.get(upstreamTaskName);
+                if (upstreamTask != null) {
+                    upstreamTask.setDownstreamPlan(downstreamPlan);
                 }
             }
         }
