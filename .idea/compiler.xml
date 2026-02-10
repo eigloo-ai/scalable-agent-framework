@@ -7,6 +7,7 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="data-plane" />
+        <module name="executor-java" />
         <module name="integration_tests-java" />
         <module name="common-java" />
         <module name="graph-composer" />
@@ -32,6 +33,7 @@
       <module name="common-java" options="-parameters" />
       <module name="control-plane" options="-parameters" />
       <module name="data-plane" options="-parameters" />
+      <module name="executor-java" options="-parameters" />
       <module name="graph-builder" options="-parameters" />
       <module name="graph-composer" options="-parameters" />
       <module name="integration_tests-java" options="-parameters" />

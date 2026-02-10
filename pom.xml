@@ -47,6 +47,7 @@
         <module>services/common-java</module>
         <module>services/data-plane</module>
         <module>services/control-plane</module>
+        <module>services/executor-java</module>
 
         <module>services/graph-builder</module>
         <module>services/graph-composer</module>

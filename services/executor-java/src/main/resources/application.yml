@@ -1,0 +1,75 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: executor-java
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: executor-java-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
+      enable-auto-commit: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+      retries: 3
+      batch-size: 16384
+      linger-ms: 1
+      buffer-memory: 33554432
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/agentic}
+    username: ${SPRING_DATASOURCE_USERNAME:agentic}
+    password: ${SPRING_DATASOURCE_PASSWORD:agentic}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+kafka:
+  topic-patterns:
+    plan-inputs: "plan-inputs-.*"
+    task-inputs: "task-inputs-.*"
+
+executor:
+  python:
+    command: ${EXECUTOR_PYTHON_COMMAND:python3}
+    timeout-seconds: ${EXECUTOR_PYTHON_TIMEOUT_SECONDS:120}
+    common-py-path: ${EXECUTOR_PYTHON_COMMON_PY_PATH:services/common-py}
+    working-root: ${EXECUTOR_PYTHON_WORKING_ROOT:${java.io.tmpdir}/executor-java}
+
+logging:
+  level:
+    ai.eigloo.agentic: INFO
+    org.apache.kafka: INFO
+    org.springframework.kafka: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+executor:
+  python:
+    common-py-path: /opt/agentic/common-py
