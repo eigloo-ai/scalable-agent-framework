@@ -5,26 +5,21 @@ import ai.eigloo.agentic.executorjava.model.NodeType;
 import ai.eigloo.agentic.executorjava.model.ResolvedExecutorNode;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
 import ai.eigloo.agentic.graph.entity.ExecutorFileEntity;
-import ai.eigloo.agentic.graph.entity.GraphStatus;
 import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.entity.TaskEntity;
 import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
 import ai.eigloo.proto.model.Common.PlanInput;
-import ai.eigloo.proto.model.Common.TaskExecution;
 import ai.eigloo.proto.model.Common.TaskInput;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 
 @Service
+@Transactional(readOnly = true)
 public class ExecutionSourceResolver {
-
-    private static final Logger logger = LoggerFactory.getLogger(ExecutionSourceResolver.class);
 
     private final AgentGraphRepository agentGraphRepository;
 
@@ -38,9 +33,9 @@ public class ExecutionSourceResolver {
             throw new IllegalArgumentException("PlanInput.plan_name is required");
         }
 
-        String lifetimeId = extractLifetimeIdFromPlanInput(planInput);
-        Optional<String> graphId = extractGraphIdFromPlanInput(planInput);
-        AgentGraphEntity graph = resolveGraph(tenantId, graphId, NodeType.PLAN, planName);
+        String graphId = requireNonBlank(planInput.getGraphId(), "PlanInput.graph_id");
+        String lifetimeId = requireNonBlank(planInput.getLifetimeId(), "PlanInput.lifetime_id");
+        AgentGraphEntity graph = resolveGraph(tenantId, graphId);
 
         PlanEntity plan = graph.getPlans().stream()
                 .filter(p -> planName.equals(p.getName()))
@@ -67,9 +62,9 @@ public class ExecutionSourceResolver {
             throw new IllegalArgumentException("TaskInput.task_name is required");
         }
 
-        String lifetimeId = extractLifetimeIdFromTaskInput(taskInput);
-        Optional<String> graphId = extractGraphIdFromTaskInput(taskInput);
-        AgentGraphEntity graph = resolveGraph(tenantId, graphId, NodeType.TASK, taskName);
+        String graphId = requireNonBlank(taskInput.getGraphId(), "TaskInput.graph_id");
+        String lifetimeId = requireNonBlank(taskInput.getLifetimeId(), "TaskInput.lifetime_id");
+        AgentGraphEntity graph = resolveGraph(tenantId, graphId);
 
         TaskEntity task = graph.getTasks().stream()
                 .filter(t -> taskName.equals(t.getName()))
@@ -90,66 +85,17 @@ public class ExecutionSourceResolver {
         );
     }
 
-    private AgentGraphEntity resolveGraph(String tenantId, Optional<String> explicitGraphId, NodeType nodeType, String nodeName) {
-        if (explicitGraphId.isPresent()) {
-            return agentGraphRepository.findByIdAndTenantIdWithAllRelations(explicitGraphId.get(), tenantId)
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "Graph '" + explicitGraphId.get() + "' not found for tenant " + tenantId));
-        }
-
-        List<AgentGraphEntity> runningGraphs =
-                agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(tenantId, GraphStatus.RUNNING);
-
-        for (AgentGraphEntity graph : runningGraphs) {
-            boolean hasNode = nodeType == NodeType.PLAN
-                    ? graph.getPlans().stream().anyMatch(p -> nodeName.equals(p.getName()))
-                    : graph.getTasks().stream().anyMatch(t -> nodeName.equals(t.getName()));
-            if (hasNode) {
-                logger.warn(
-                        "Resolved {} '{}' without explicit graph id to running graph {}",
-                        nodeType, nodeName, graph.getId());
-                return graph;
-            }
-        }
-
-        throw new IllegalArgumentException(
-                "Could not resolve graph for " + nodeType + " '" + nodeName + "' for tenant " + tenantId);
+    private AgentGraphEntity resolveGraph(String tenantId, String graphId) {
+        return agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Graph '" + graphId + "' not found for tenant " + tenantId));
     }
 
-    private Optional<String> extractGraphIdFromPlanInput(PlanInput planInput) {
-        for (TaskExecution taskExecution : planInput.getTaskExecutionsList()) {
-            if (taskExecution.hasHeader() && !taskExecution.getHeader().getGraphId().isBlank()) {
-                return Optional.of(taskExecution.getHeader().getGraphId());
-            }
+    private static String requireNonBlank(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " is required");
         }
-        return Optional.empty();
-    }
-
-    private Optional<String> extractGraphIdFromTaskInput(TaskInput taskInput) {
-        if (taskInput.hasPlanExecution()
-                && taskInput.getPlanExecution().hasHeader()
-                && !taskInput.getPlanExecution().getHeader().getGraphId().isBlank()) {
-            return Optional.of(taskInput.getPlanExecution().getHeader().getGraphId());
-        }
-        return Optional.empty();
-    }
-
-    private String extractLifetimeIdFromPlanInput(PlanInput planInput) {
-        for (TaskExecution taskExecution : planInput.getTaskExecutionsList()) {
-            if (taskExecution.hasHeader() && !taskExecution.getHeader().getLifetimeId().isBlank()) {
-                return taskExecution.getHeader().getLifetimeId();
-            }
-        }
-        return "";
-    }
-
-    private String extractLifetimeIdFromTaskInput(TaskInput taskInput) {
-        if (taskInput.hasPlanExecution()
-                && taskInput.getPlanExecution().hasHeader()
-                && !taskInput.getPlanExecution().getHeader().getLifetimeId().isBlank()) {
-            return taskInput.getPlanExecution().getHeader().getLifetimeId();
-        }
-        return "";
+        return value;
     }
 
     private List<ExecutorFilePayload> toPayloadFiles(List<ExecutorFileEntity> files) {

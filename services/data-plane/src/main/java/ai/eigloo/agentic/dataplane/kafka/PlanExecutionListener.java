@@ -42,7 +42,7 @@ public class PlanExecutionListener {
      * @param acknowledgment manual acknowledgment
      */
     @KafkaListener(
-        topics = "#{@kafkaTopicPatterns.planExecutionsPattern}",
+        topicPattern = "#{@kafkaTopicPatterns.planExecutionsPattern}",
         groupId = "data-plane-plan-executions",
         containerFactory = "tenantAwareKafkaListenerContainerFactory"
     )

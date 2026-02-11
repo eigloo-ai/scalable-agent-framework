@@ -84,53 +84,6 @@ public interface PlanExecutionRepository extends JpaRepository<PlanExecutionEnti
     Page<PlanExecutionEntity> findByTenantIdAndGraphId(String tenantId, String graphId, Pageable pageable);
     
     /**
-     * Find plan executions by tenant and plan type.
-     * 
-     * @param tenantId the tenant identifier
-     * @param planType the plan type
-     * @return list of plan executions for the plan type
-     */
-    List<PlanExecutionEntity> findByTenantIdAndPlanType(String tenantId, String planType);
-    
-    /**
-     * Find plan executions by tenant and plan type with pagination.
-     * 
-     * @param tenantId the tenant identifier
-     * @param planType the plan type
-     * @param pageable pagination parameters
-     * @return page of plan executions for the plan type
-     */
-    Page<PlanExecutionEntity> findByTenantIdAndPlanType(String tenantId, String planType, Pageable pageable);
-    
-    /**
-     * Find plan executions by tenant and input task ID.
-     * 
-     * @param tenantId the tenant identifier
-     * @param inputTaskId the input task identifier
-     * @return list of plan executions for the input task
-     */
-    List<PlanExecutionEntity> findByTenantIdAndInputTaskId(String tenantId, String inputTaskId);
-    
-    /**
-     * Find plan executions by tenant and input task ID with pagination.
-     * 
-     * @param tenantId the tenant identifier
-     * @param inputTaskId the input task identifier
-     * @param pageable pagination parameters
-     * @return page of plan executions for the input task
-     */
-    Page<PlanExecutionEntity> findByTenantIdAndInputTaskId(String tenantId, String inputTaskId, Pageable pageable);
-    
-    /**
-     * Find plan executions by tenant and parent ID.
-     * 
-     * @param tenantId the tenant identifier
-     * @param parentId the parent execution identifier
-     * @return list of child plan executions
-     */
-    List<PlanExecutionEntity> findByTenantIdAndParentId(String tenantId, String parentId);
-    
-    /**
      * Find plan executions created within a time range for a tenant.
      * 
      * @param tenantId the tenant identifier
@@ -195,27 +148,6 @@ public interface PlanExecutionRepository extends JpaRepository<PlanExecutionEnti
      */
     @Query("SELECT p FROM PlanExecutionEntity p WHERE p.tenantId = :tenantId AND p.errorMessage IS NOT NULL")
     Page<PlanExecutionEntity> findWithErrorsByTenantId(@Param("tenantId") String tenantId, Pageable pageable);
-    
-    /**
-     * Find plan executions with high confidence for a tenant.
-     * 
-     * @param tenantId the tenant identifier
-     * @param minConfidence minimum confidence threshold
-     * @return list of plan executions with high confidence
-     */
-    @Query("SELECT p FROM PlanExecutionEntity p WHERE p.tenantId = :tenantId AND p.confidence >= :minConfidence")
-    List<PlanExecutionEntity> findByTenantIdAndConfidenceGreaterThanEqual(@Param("tenantId") String tenantId, @Param("minConfidence") Double minConfidence);
-    
-    /**
-     * Find plan executions with high confidence for a tenant with pagination.
-     * 
-     * @param tenantId the tenant identifier
-     * @param minConfidence minimum confidence threshold
-     * @param pageable pagination parameters
-     * @return page of plan executions with high confidence
-     */
-    @Query("SELECT p FROM PlanExecutionEntity p WHERE p.tenantId = :tenantId AND p.confidence >= :minConfidence")
-    Page<PlanExecutionEntity> findByTenantIdAndConfidenceGreaterThanEqual(@Param("tenantId") String tenantId, @Param("minConfidence") Double minConfidence, Pageable pageable);
     
     /**
      * Find plan execution by tenant and execution ID.

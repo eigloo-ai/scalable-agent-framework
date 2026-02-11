@@ -13,13 +13,17 @@
     </parent>
     
     <artifactId>common-java</artifactId>
-    <version>1.1.0</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
     
     <name>Agentic Common Java</name>
     <description>Common utilities and protobuf classes for Agentic microservices</description>
     
     <!-- Properties inherited from parent POM -->
+    <properties>
+        <!-- Docker 29 rejects the older Testcontainers default API version (v1.32). -->
+        <docker.api.version>1.44</docker.api.version>
+    </properties>
     
     <dependencies>
         <!-- Protobuf -->
@@ -71,6 +75,13 @@
         </dependency>
         
         <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
@@ -164,6 +175,7 @@
                     <forkCount>1</forkCount>
                     <reuseForks>false</reuseForks>
                     <systemPropertyVariables>
+                        <api.version>${docker.api.version}</api.version>
                         <java.awt.headless>true</java.awt.headless>
                     </systemPropertyVariables>
                 </configuration>

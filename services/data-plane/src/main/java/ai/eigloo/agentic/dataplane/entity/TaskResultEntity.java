@@ -14,7 +14,7 @@ import java.util.Map;
 @Entity
 @Table(name = "task_results", indexes = {
     @Index(name = "idx_task_results_tenant_id", columnList = "tenant_id"),
-    @Index(name = "idx_task_results_created_at", columnList = "created_at")
+    @Index(name = "idx_task_results_created_at", columnList = "db_created_at")
 })
 public class TaskResultEntity {
     

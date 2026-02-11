@@ -19,10 +19,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -102,11 +105,10 @@ class GraphServiceImplTest {
         // Given
         String graphId = "test-graph-id";
         String tenantId = "test-tenant";
-        // Set up empty collections for plans and tasks to avoid null pointer exceptions
-        testGraphEntity.setPlans(List.of());
-        testGraphEntity.setTasks(List.of());
-        
-        when(agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)).thenReturn(Optional.of(testGraphEntity));
+
+        when(agentGraphRepository.findByIdAndTenantId(graphId, tenantId)).thenReturn(Optional.of(testGraphEntity));
+        when(planRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
+        when(taskRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
 
         // When
         AgentGraphDto result = graphService.getGraph(graphId, tenantId);
@@ -117,7 +119,9 @@ class GraphServiceImplTest {
         assertEquals(testGraphEntity.getName(), result.getName());
         assertEquals(testGraphEntity.getTenantId(), result.getTenantId());
         
-        verify(agentGraphRepository).findByIdAndTenantIdWithAllRelations(graphId, tenantId);
+        verify(agentGraphRepository).findByIdAndTenantId(graphId, tenantId);
+        verify(planRepository).findByAgentGraphIdWithFiles(graphId);
+        verify(taskRepository).findByAgentGraphIdWithFiles(graphId);
     }
 
     @Test
@@ -125,13 +129,15 @@ class GraphServiceImplTest {
         // Given
         String graphId = "non-existent-id";
         String tenantId = "test-tenant";
-        when(agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)).thenReturn(Optional.empty());
+        when(agentGraphRepository.findByIdAndTenantId(graphId, tenantId)).thenReturn(Optional.empty());
 
         // When & Then
         assertThrows(GraphService.GraphNotFoundException.class, 
                     () -> graphService.getGraph(graphId, tenantId));
         
-        verify(agentGraphRepository).findByIdAndTenantIdWithAllRelations(graphId, tenantId);
+        verify(agentGraphRepository).findByIdAndTenantId(graphId, tenantId);
+        verifyNoInteractions(planRepository);
+        verifyNoInteractions(taskRepository);
     }
 
     @Test
@@ -183,6 +189,87 @@ class GraphServiceImplTest {
         verify(agentGraphRepository).findByIdAndTenantId(graphId, testGraphDto.getTenantId());
         verify(validationService).validateGraph(testGraphDto);
         verify(agentGraphRepository).save(any(AgentGraphEntity.class));
+    }
+
+    @Test
+    void updateGraph_ShouldSetDownstreamPlan_FromPlanUpstreamTaskIds() {
+        // Given
+        String graphId = "test-graph-id";
+        ValidationResult validationResult = new ValidationResult(true, List.of(), List.of());
+
+        PlanDto planA = new PlanDto();
+        planA.setName("PlanA");
+        planA.setLabel("Plan A");
+        planA.setUpstreamTaskIds(Set.of());
+        planA.setFiles(List.of());
+
+        PlanDto planB = new PlanDto();
+        planB.setName("PlanB");
+        planB.setLabel("Plan B");
+        planB.setUpstreamTaskIds(Set.of("Task1A"));
+        planB.setFiles(List.of());
+
+        TaskDto task1A = new TaskDto();
+        task1A.setName("Task1A");
+        task1A.setLabel("Task 1A");
+        task1A.setUpstreamPlanId("PlanA");
+        task1A.setFiles(List.of());
+
+        TaskDto task1B = new TaskDto();
+        task1B.setName("Task1B");
+        task1B.setLabel("Task 1B");
+        task1B.setUpstreamPlanId("PlanA");
+        task1B.setFiles(List.of());
+
+        TaskDto task2 = new TaskDto();
+        task2.setName("Task2");
+        task2.setLabel("Task 2");
+        task2.setUpstreamPlanId("PlanB");
+        task2.setFiles(List.of());
+
+        AgentGraphDto updateDto = new AgentGraphDto();
+        updateDto.setId(graphId);
+        updateDto.setName("Test Graph");
+        updateDto.setTenantId("test-tenant");
+        updateDto.setStatus(GraphStatus.NEW);
+        updateDto.setPlans(List.of(planA, planB));
+        updateDto.setTasks(List.of(task1A, task1B, task2));
+        updateDto.setPlanToTasks(Map.of(
+                "PlanA", Set.of("Task1A", "Task1B"),
+                "PlanB", Set.of("Task2")
+        ));
+        updateDto.setTaskToPlan(Map.of(
+                "Task1A", "PlanA",
+                "Task1B", "PlanA",
+                "Task2", "PlanB"
+        ));
+
+        when(agentGraphRepository.findByIdAndTenantId(graphId, updateDto.getTenantId()))
+                .thenReturn(Optional.of(testGraphEntity));
+        when(validationService.validateGraph(updateDto)).thenReturn(validationResult);
+        when(agentGraphRepository.save(any(AgentGraphEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        graphService.updateGraph(graphId, updateDto);
+
+        // Then
+        ArgumentCaptor<AgentGraphEntity> graphCaptor = ArgumentCaptor.forClass(AgentGraphEntity.class);
+        verify(agentGraphRepository).save(graphCaptor.capture());
+
+        AgentGraphEntity savedGraph = graphCaptor.getValue();
+        assertNotNull(savedGraph);
+        assertEquals(3, savedGraph.getTasks().size());
+
+        Map<String, String> downstreamByTask = new java.util.HashMap<>();
+        savedGraph.getTasks().forEach(task -> downstreamByTask.put(
+                task.getName(),
+                task.getDownstreamPlan() != null ? task.getDownstreamPlan().getName() : ""
+        ));
+
+        assertEquals("PlanB", downstreamByTask.get("Task1A"));
+        assertEquals("", downstreamByTask.get("Task1B"));
+        assertEquals("", downstreamByTask.get("Task2"));
     }
 
     @Test

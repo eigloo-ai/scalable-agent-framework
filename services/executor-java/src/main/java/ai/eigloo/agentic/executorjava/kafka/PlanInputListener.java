@@ -30,7 +30,7 @@ public class PlanInputListener {
     }
 
     @KafkaListener(
-            topics = "#{@kafkaTopicPatterns.planInputsPattern}",
+            topicPattern = "#{@kafkaTopicPatterns.planInputsPattern}",
             groupId = "executor-java-plan-inputs",
             containerFactory = "tenantAwareKafkaListenerContainerFactory"
     )
@@ -49,6 +49,13 @@ public class PlanInputListener {
             PlanInput planInput = ProtobufUtils.deserializePlanInput(record.value());
             if (planInput == null) {
                 logger.error("Could not deserialize PlanInput from topic {}", topic);
+                acknowledgment.acknowledge();
+                return;
+            }
+            if (planInput.getGraphId().isBlank() || planInput.getLifetimeId().isBlank()) {
+                logger.error(
+                        "Rejecting PlanInput '{}' for plan '{}' due to missing graph_id/lifetime_id",
+                        planInput.getInputId(), planInput.getPlanName());
                 acknowledgment.acknowledge();
                 return;
             }

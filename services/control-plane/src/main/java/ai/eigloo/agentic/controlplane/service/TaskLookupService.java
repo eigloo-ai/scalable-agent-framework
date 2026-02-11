@@ -7,6 +7,7 @@ import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -17,6 +18,7 @@ import java.util.Optional;
  * Service for graph-backed plan/task relationship lookups.
  */
 @Service
+@Transactional(readOnly = true)
 public class TaskLookupService {
 
     private static final Logger logger = LoggerFactory.getLogger(TaskLookupService.class);
