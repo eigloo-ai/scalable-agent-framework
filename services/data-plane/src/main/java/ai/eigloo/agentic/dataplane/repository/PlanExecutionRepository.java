@@ -72,6 +72,14 @@ public interface PlanExecutionRepository extends JpaRepository<PlanExecutionEnti
      * @return list of plan executions for the graph
      */
     List<PlanExecutionEntity> findByTenantIdAndGraphId(String tenantId, String graphId);
+
+    /**
+     * Find plan executions by tenant, graph, and lifetime ordered by created time.
+     */
+    List<PlanExecutionEntity> findByTenantIdAndGraphIdAndLifetimeIdOrderByCreatedAtAsc(
+            String tenantId,
+            String graphId,
+            String lifetimeId);
     
     /**
      * Find plan executions by tenant and graph ID with pagination.
@@ -157,4 +165,13 @@ public interface PlanExecutionRepository extends JpaRepository<PlanExecutionEnti
      * @return optional containing the plan execution
      */
     Optional<PlanExecutionEntity> findByTenantIdAndExecId(String tenantId, String execId);
+
+    /**
+     * Check whether any plan execution in a run has a specific status.
+     */
+    boolean existsByTenantIdAndGraphIdAndLifetimeIdAndStatus(
+            String tenantId,
+            String graphId,
+            String lifetimeId,
+            PlanExecutionEntity.ExecutionStatus status);
 } 

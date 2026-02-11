@@ -3,9 +3,12 @@ package ai.eigloo.agentic.graphcomposer.service;
 import ai.eigloo.agentic.graph.entity.GraphStatus;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
 import ai.eigloo.agentic.graph.entity.ExecutorFileEntity;
+import ai.eigloo.agentic.graph.entity.GraphRunEntity;
+import ai.eigloo.agentic.graph.entity.GraphRunStatus;
 import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.entity.TaskEntity;
 import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
+import ai.eigloo.agentic.graph.repository.GraphRunRepository;
 import ai.eigloo.agentic.graph.repository.PlanRepository;
 import ai.eigloo.agentic.graph.repository.TaskRepository;
 import ai.eigloo.agentic.graphcomposer.dto.AgentGraphDto;
@@ -25,6 +28,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -42,6 +46,7 @@ public class GraphServiceImpl implements GraphService {
     private final AgentGraphRepository agentGraphRepository;
     private final PlanRepository planRepository;
     private final TaskRepository taskRepository;
+    private final GraphRunRepository graphRunRepository;
     private final FileService fileService;
     private final ValidationService validationService;
     private final GraphExecutionBootstrapPublisher graphExecutionBootstrapPublisher;
@@ -50,12 +55,14 @@ public class GraphServiceImpl implements GraphService {
     public GraphServiceImpl(AgentGraphRepository agentGraphRepository,
                            PlanRepository planRepository,
                            TaskRepository taskRepository,
+                           GraphRunRepository graphRunRepository,
                            FileService fileService,
                            ValidationService validationService,
                            GraphExecutionBootstrapPublisher graphExecutionBootstrapPublisher) {
         this.agentGraphRepository = agentGraphRepository;
         this.planRepository = planRepository;
         this.taskRepository = taskRepository;
+        this.graphRunRepository = graphRunRepository;
         this.fileService = fileService;
         this.validationService = validationService;
         this.graphExecutionBootstrapPublisher = graphExecutionBootstrapPublisher;
@@ -186,19 +193,34 @@ public class GraphServiceImpl implements GraphService {
         }
 
         String lifetimeId = UUID.randomUUID().toString();
+        if (graph.getStatus() != GraphStatus.ACTIVE) {
+            graph.setStatus(GraphStatus.ACTIVE);
+            graph.setUpdatedAt(LocalDateTime.now());
+            agentGraphRepository.save(graph);
+        }
 
-        graph.setStatus(GraphStatus.RUNNING);
-        graph.setUpdatedAt(LocalDateTime.now());
-        agentGraphRepository.save(graph);
+        GraphRunEntity graphRun = new GraphRunEntity();
+        graphRun.setLifetimeId(lifetimeId);
+        graphRun.setTenantId(tenantId);
+        graphRun.setGraphId(graphId);
+        graphRun.setStatus(GraphRunStatus.QUEUED);
+        graphRun.setEntryPlanNames(String.join(",", entryPlanNames));
+        graphRun.setCreatedAt(Instant.now());
+        graphRunRepository.save(graphRun);
 
         try {
             for (String planName : entryPlanNames) {
                 graphExecutionBootstrapPublisher.publishStartPlanInput(tenantId, graphId, lifetimeId, planName);
             }
+
+            graphRun.setStatus(GraphRunStatus.RUNNING);
+            graphRun.setStartedAt(Instant.now());
+            graphRunRepository.save(graphRun);
         } catch (Exception e) {
-            graph.setStatus(GraphStatus.ERROR);
-            graph.setUpdatedAt(LocalDateTime.now());
-            agentGraphRepository.save(graph);
+            graphRun.setStatus(GraphRunStatus.FAILED);
+            graphRun.setCompletedAt(Instant.now());
+            graphRun.setErrorMessage(compactErrorMessage(e));
+            graphRunRepository.save(graphRun);
             throw new IllegalStateException("Failed to enqueue graph execution bootstrap messages", e);
         }
 
@@ -211,6 +233,14 @@ public class GraphServiceImpl implements GraphService {
                 "Graph {} execution started for tenant {} lifetime {} entryPlans={}",
                 graphId, tenantId, lifetimeId, entryPlanNames);
         return response;
+    }
+
+    private static String compactErrorMessage(Throwable throwable) {
+        String message = throwable.getMessage();
+        if (message == null || message.isBlank()) {
+            message = throwable.getClass().getSimpleName();
+        }
+        return message.length() > 1000 ? message.substring(0, 1000) : message;
     }
 
     @Override

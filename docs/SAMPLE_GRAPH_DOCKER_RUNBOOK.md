@@ -41,7 +41,20 @@ docker compose logs -f graph-composer executor-java data-plane control-plane \
   | rg "<lifetime-id>|<graph-id>"
 ```
 
-## 4) Verify persisted execution records in PostgreSQL
+## 4) Query run timeline API (recommended)
+
+```bash
+curl -s "http://localhost:8081/api/v1/runs/<lifetime-id>/timeline?tenantId=tenant-dev&graphId=<graph-id>" | jq
+```
+
+Expected run status progression:
+
+- `QUEUED` right after execute request acceptance
+- `RUNNING` while plan/task messages are flowing
+- `SUCCEEDED` when emitted edges are fully resolved
+- `FAILED` if any persisted plan/task execution fails
+
+## 5) Verify persisted execution records in PostgreSQL
 
 ```bash
 docker compose exec -T postgres psql -U agentic -d agentic \
@@ -53,10 +66,11 @@ docker compose exec -T postgres psql -U agentic -d agentic \
   -c "select created_at, name, exec_id, parent_plan_name, graph_id, lifetime_id, status from task_executions where tenant_id='tenant-dev' and lifetime_id='<lifetime-id>' order by created_at;"
 ```
 
-## 5) Graph status semantics
+## 6) Graph status semantics
 
-- `NEW`: graph exists but has not been activated for execution.
-- `ACTIVE`: graph is loaded and ready to run.
-- `RUNNING`: graph execution has been started and is in-flight.
-- `STOPPED`: graph execution was stopped.
-- `ERROR`: graph failed to start or encountered a runtime error state.
+- Graph definition status (`agent_graphs.status`):
+  - `NEW`: graph exists but has not been activated for execution
+  - `ACTIVE`: graph is loaded and ready to run
+  - `RUNNING`, `STOPPED`, `ERROR`: legacy states still represented in the model
+- Graph run status (`graph_runs.status`, keyed by `lifetime_id`):
+  - `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`
