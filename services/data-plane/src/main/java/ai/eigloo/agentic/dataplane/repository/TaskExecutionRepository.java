@@ -72,6 +72,23 @@ public interface TaskExecutionRepository extends JpaRepository<TaskExecutionEnti
      * @return list of task executions for the graph
      */
     List<TaskExecutionEntity> findByTenantIdAndGraphId(String tenantId, String graphId);
+
+    /**
+     * Find task executions by tenant, graph, and lifetime ordered by created time.
+     */
+    List<TaskExecutionEntity> findByTenantIdAndGraphIdAndLifetimeIdOrderByCreatedAtAsc(
+            String tenantId,
+            String graphId,
+            String lifetimeId);
+
+    /**
+     * Find task executions by tenant, graph, lifetime, and status.
+     */
+    List<TaskExecutionEntity> findByTenantIdAndGraphIdAndLifetimeIdAndStatus(
+            String tenantId,
+            String graphId,
+            String lifetimeId,
+            TaskExecutionEntity.ExecutionStatus status);
     
     /**
      * Find task executions by tenant and graph ID with pagination.
@@ -129,5 +146,14 @@ public interface TaskExecutionRepository extends JpaRepository<TaskExecutionEnti
      */
     @Query("SELECT t FROM TaskExecutionEntity t WHERE t.tenantId = :tenantId ORDER BY t.createdAt DESC")
     Optional<TaskExecutionEntity> findFirstByTenantIdOrderByCreatedAtDesc(@Param("tenantId") String tenantId);
+
+    /**
+     * Check whether any task execution in a run has a specific status.
+     */
+    boolean existsByTenantIdAndGraphIdAndLifetimeIdAndStatus(
+            String tenantId,
+            String graphId,
+            String lifetimeId,
+            TaskExecutionEntity.ExecutionStatus status);
     
 }

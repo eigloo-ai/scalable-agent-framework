@@ -33,6 +33,7 @@ public class PersistenceService {
     private final TaskExecutionRepository taskExecutionRepository;
     private final PlanExecutionRepository planExecutionRepository;
     private final TaskResultRepository taskResultRepository;
+    private final GraphRunLifecycleService graphRunLifecycleService;
     private final ObjectMapper objectMapper;
     
     @Autowired
@@ -40,10 +41,12 @@ public class PersistenceService {
             TaskExecutionRepository taskExecutionRepository,
             PlanExecutionRepository planExecutionRepository,
             TaskResultRepository taskResultRepository,
+            GraphRunLifecycleService graphRunLifecycleService,
             ObjectMapper objectMapper) {
         this.taskExecutionRepository = taskExecutionRepository;
         this.planExecutionRepository = planExecutionRepository;
         this.taskResultRepository = taskResultRepository;
+        this.graphRunLifecycleService = graphRunLifecycleService;
         this.objectMapper = objectMapper;
     }
     
@@ -81,6 +84,7 @@ public class PersistenceService {
             // Save to database
             TaskExecutionEntity savedEntity = taskExecutionRepository.save(entity);
             logger.debug("Saved TaskExecution {}/{} to database", savedEntity.getName(), savedEntity.getExecId());
+            graphRunLifecycleService.onTaskExecutionPersisted(savedEntity);
             
             logger.info(
                     "Persisted task execution tenant={} graph={} lifetime={} node={} exec={}",
@@ -124,6 +128,7 @@ public class PersistenceService {
             // Save to database
             PlanExecutionEntity savedEntity = planExecutionRepository.save(entity);
             logger.debug("Saved PlanExecution {}/{} to database", savedEntity.getName(), savedEntity.getExecId());
+            graphRunLifecycleService.onPlanExecutionPersisted(savedEntity);
             
             logger.info(
                     "Persisted plan execution tenant={} graph={} lifetime={} node={} exec={}",

@@ -1,0 +1,44 @@
+name: docker-sample-graph-smoke
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/docker-sample-graph-smoke.yml"
+      - "docker-compose.yml"
+      - "scripts/load_sample_graph.py"
+      - "scripts/load_sample_graph.sh"
+      - "scripts/smoke_sample_graph.sh"
+      - "services/common-java/**"
+      - "services/data-plane/**"
+      - "services/control-plane/**"
+      - "services/executor-java/**"
+      - "services/graph-composer/**"
+  workflow_dispatch:
+
+jobs:
+  sample-graph-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start Docker runtime services
+        run: docker compose up -d --build kafka postgres graph-composer executor-java data-plane control-plane
+
+      - name: Run end-to-end sample graph smoke
+        run: |
+          ./scripts/smoke_sample_graph.sh \
+            --base-url http://localhost:8088 \
+            --data-plane-url http://localhost:8081 \
+            --tenant-id tenant-ci \
+            --graph-name sample-graph-ci-${{ github.run_id }}-${{ github.run_attempt }} \
+            --timeout-seconds 300
+
+      - name: Collect service logs
+        if: always()
+        run: docker compose logs --tail=200 graph-composer executor-java data-plane control-plane kafka postgres
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
