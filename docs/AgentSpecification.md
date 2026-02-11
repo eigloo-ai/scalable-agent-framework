@@ -22,7 +22,7 @@ The ControlPlane service plays a crucial role in the message flow by examining T
 1. **TaskExecution Reception**: ControlPlane receives TaskExecution protobuf messages from DataPlane via `persisted-task-executions-{tenantId}` topics
 2. **Guardrail Evaluation**: ControlPlane evaluates guardrails and policies on the TaskExecution data
 3. **Next Plan Prep**: ControlPlane examines the TaskExecution and looks up the next Plan in the graph
-4. **PlanInput Publication**: ControlPlane publishes the PlanInput to `plan-inputs-{tenantId}` topics for PlanExecutor consumption
+4. **PlanInput Publication**: ControlPlane publishes the PlanInput to `plan-inputs-{tenantId}` topics for `executor-java` plan-input consumption
 
 ### PlanInput Message Structure
 
@@ -31,7 +31,7 @@ The PlanInput protobuf message contains:
 - **plan_name**: Name of the next plan in the graph path
 - **task_executions**: List of TaskExecution objects that provide input to this plan
 
-This process ensures that PlanExecutor receives properly structured input data with the correct next plan information from the graph.
+This process ensures that `executor-java` receives properly structured plan input data with the correct next-plan information from the graph.
 ## Directory Structure
 
 A complete agent graph specification consists of the following directory structure:

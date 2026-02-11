@@ -7,16 +7,13 @@
 			"path": "services/common-java"
 		},
 		{
-			"path": "services/data_plane-java"
+			"path": "services/data-plane"
 		},
 		{
-			"path": "services/plan_executor-java"
+			"path": "services/executor-java"
 		},
 		{
-			"path": "services/control_plane-java"
-		},
-		{
-			"path": "services/task_executor-java"
+			"path": "services/control-plane"
 		}
 	],
 	"settings": {

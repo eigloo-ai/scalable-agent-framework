@@ -149,13 +149,8 @@ All microservices have been updated to use the tenant-aware configuration:
 - Enhanced tenant ID extraction logic
 - Simplified Kafka configuration by importing `TenantAwareKafkaConfig`
 
-#### Task Executor
-- Updated `TaskExecutorConsumer` and `PlanResultListener`
-- Uses tenant-aware container factory
-- Simplified configuration
-
-#### Plan Executor
-- Updated `PlanExecutorConsumer` and `PlanInputListener`
+#### Executor Java
+- Updated `TaskInputListener` and `PlanInputListener`
 - Uses tenant-aware container factory
 - Simplified configuration
 
@@ -332,7 +327,7 @@ kafka:
 
 ## TaskInput Message Flow
 
-TaskExecutors receive TaskInput messages (the upstream PlanExecution). This enables more granular task execution control and better separation of concerns between planning and execution phases.
+`executor-java` receives TaskInput messages (the upstream PlanExecution) on the task-input listener path.
 
 ## Future Enhancements
 
