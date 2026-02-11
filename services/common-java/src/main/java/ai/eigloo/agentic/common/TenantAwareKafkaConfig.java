@@ -50,6 +50,9 @@ public class TenantAwareKafkaConfig {
     
     @Value("${kafka.tenant.session-timeout-ms:30000}")
     private int sessionTimeoutMs;
+
+    @Value("${kafka.tenant.metadata-max-age-ms:10000}")
+    private int metadataMaxAgeMs;
     
     @Autowired
     private KafkaTopicPatterns topicPatterns;
@@ -63,7 +66,7 @@ public class TenantAwareKafkaConfig {
      * @return the consumer factory
      */
     @Bean
-    public ConsumerFactory<String, Object> tenantAwareConsumerFactory() {
+    public ConsumerFactory<String, byte[]> tenantAwareConsumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
@@ -72,6 +75,8 @@ public class TenantAwareKafkaConfig {
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, maxPollRecords);
         props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, sessionTimeoutMs);
+        // Discover newly created tenant topics quickly during active graph execution.
+        props.put(ConsumerConfig.METADATA_MAX_AGE_CONFIG, metadataMaxAgeMs);
         
         return new DefaultKafkaConsumerFactory<>(props);
     }
@@ -82,7 +87,7 @@ public class TenantAwareKafkaConfig {
      * @return the producer factory
      */
     @Bean
-    public ProducerFactory<String, Object> tenantAwareProducerFactory() {
+    public ProducerFactory<String, byte[]> tenantAwareProducerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -102,7 +107,7 @@ public class TenantAwareKafkaConfig {
      * @return the Kafka template
      */
     @Bean
-    public KafkaTemplate<String, Object> tenantAwareKafkaTemplate() {
+    public KafkaTemplate<String, byte[]> tenantAwareKafkaTemplate() {
         return new KafkaTemplate<>(tenantAwareProducerFactory());
     }
     
@@ -112,8 +117,8 @@ public class TenantAwareKafkaConfig {
      * @return the listener container factory
      */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> tenantAwareKafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, Object> factory = 
+    public ConcurrentKafkaListenerContainerFactory<String, byte[]> tenantAwareKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, byte[]> factory = 
             new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(tenantAwareConsumerFactory());
         factory.setConcurrency(tenantConcurrency);

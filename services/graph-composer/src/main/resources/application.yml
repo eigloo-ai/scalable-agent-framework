@@ -65,6 +65,13 @@ spring:
   flyway:
     enabled: false
 
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
+      acks: all
+
   web:
     resources:
       static-locations: classpath:/static/
@@ -120,6 +127,15 @@ spring:
     url: jdbc:postgresql://postgres:5432/agentic_framework
     username: agentic_user
     password: agentic_password
+  jpa:
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
+      continue-on-error: false
+      schema-locations: classpath:db/sql/graph_status_constraint.sql
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
 
 ---
 spring:

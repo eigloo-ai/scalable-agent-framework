@@ -40,8 +40,6 @@ public class ExecutionRouter {
      */
     public void routeTaskExecution(TaskExecution taskExecution, String tenantId) {
         try {
-            logger.debug("Routing task execution for tenant {}", tenantId);
-
             if (!taskExecution.hasHeader()) {
                 logger.error("Rejecting TaskExecution without header for tenant {}", tenantId);
                 return;
@@ -64,13 +62,21 @@ public class ExecutionRouter {
             String graphId = header.getGraphId();
             String lifetimeId = header.getLifetimeId();
             String taskName = header.getName();
+            logger.info(
+                    "Routing task execution tenant={} graph={} lifetime={} task={} exec={} status={}",
+                    tenantId,
+                    graphId,
+                    lifetimeId,
+                    taskName,
+                    header.getExecId(),
+                    header.getStatus());
             Optional<String> downstreamPlanName =
                     taskLookupService.lookupDownstreamPlanName(taskName, tenantId, graphId);
 
             if (downstreamPlanName.isEmpty()) {
                 logger.info(
-                        "No downstream plan found for task '{}' in graph '{}' tenant '{}'",
-                        taskName, graphId, tenantId);
+                        "No downstream plan found tenant={} graph={} lifetime={} task={} exec={}",
+                        tenantId, graphId, lifetimeId, taskName, header.getExecId());
                 return;
             }
 
@@ -84,8 +90,8 @@ public class ExecutionRouter {
 
             executorProducer.publishPlanInput(tenantId, planInput);
             logger.info(
-                    "Routed task '{}' execution to downstream plan '{}' for tenant '{}'",
-                    taskName, downstreamPlanName.get(), tenantId);
+                    "Published downstream PlanInput tenant={} graph={} lifetime={} fromTask={} toPlan={}",
+                    tenantId, graphId, lifetimeId, taskName, downstreamPlanName.get());
         } catch (Exception e) {
             logger.error("Error routing task execution for tenant {}: {}", tenantId, e.getMessage(), e);
         }
@@ -96,8 +102,6 @@ public class ExecutionRouter {
      */
     public void routePlanExecution(PlanExecution planExecution, String tenantId) {
         try {
-            logger.debug("Routing plan execution for tenant {}", tenantId);
-
             if (!planExecution.hasHeader()) {
                 logger.error("Rejecting PlanExecution without header for tenant {}", tenantId);
                 return;
@@ -131,6 +135,15 @@ public class ExecutionRouter {
             String graphId = header.getGraphId();
             String lifetimeId = header.getLifetimeId();
             String planName = header.getName();
+            logger.info(
+                    "Routing plan execution tenant={} graph={} lifetime={} plan={} exec={} status={} requestedTasks={}",
+                    tenantId,
+                    graphId,
+                    lifetimeId,
+                    planName,
+                    header.getExecId(),
+                    header.getStatus(),
+                    nextTaskNames);
             List<String> resolvedTaskNames = taskLookupService.lookupExecutableTaskNames(
                     nextTaskNames,
                     tenantId,
@@ -148,14 +161,14 @@ public class ExecutionRouter {
                         .build();
 
                 executorProducer.publishTaskInput(tenantId, taskInput);
-                logger.debug(
-                        "Published TaskInput for task '{}' graph '{}' tenant '{}'",
-                        taskName, graphId, tenantId);
+                logger.info(
+                        "Published TaskInput tenant={} graph={} lifetime={} fromPlan={} toTask={}",
+                        tenantId, graphId, lifetimeId, planName, taskName);
             }
 
             logger.info(
-                    "Published {} task inputs from plan '{}' execution for tenant '{}'",
-                    resolvedTaskNames.size(), planName, tenantId);
+                    "Published {} task inputs tenant={} graph={} lifetime={} plan={} tasks={}",
+                    resolvedTaskNames.size(), tenantId, graphId, lifetimeId, planName, resolvedTaskNames);
         } catch (Exception e) {
             logger.error("Error routing plan execution for tenant {}: {}", tenantId, e.getMessage(), e);
         }

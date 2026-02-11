@@ -72,4 +72,5 @@ spring:
 
 executor:
   python:
+    command: /opt/agentic/venv/bin/python
     common-py-path: /opt/agentic/common-py

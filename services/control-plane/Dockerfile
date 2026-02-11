@@ -1,6 +1,6 @@
 # Runtime stage for Control Plane Java microservice
 # JAR file should be built outside Docker and copied to this image
-FROM openjdk:21
+FROM eclipse-temurin:21-jre
 
 # curl is already available in the base image
 
@@ -11,8 +11,8 @@ RUN groupadd -g 1001 appgroup && \
 # Set working directory
 WORKDIR /app
 
-# Copy the pre-built JAR from host (built outside Docker)
-COPY services/control-plane/target/control-plane-*.jar app.jar
+# Copy the executable Spring Boot JAR from host (built outside Docker)
+COPY services/control-plane/target/control-plane-*-exec.jar app.jar
 
 # Change ownership to non-root user
 RUN chown -R appuser:appgroup /app

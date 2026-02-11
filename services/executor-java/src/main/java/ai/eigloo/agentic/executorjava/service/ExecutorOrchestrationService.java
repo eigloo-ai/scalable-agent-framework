@@ -38,6 +38,14 @@ public class ExecutorOrchestrationService {
     public PlanExecution handlePlanInput(String tenantId, PlanInput planInput) {
         ResolvedExecutorNode resolvedNode = sourceResolver.resolvePlanNode(tenantId, planInput);
         String executionId = UUID.randomUUID().toString();
+        logger.info(
+                "Executor starting plan tenant={} graph={} lifetime={} plan={} inputId={} exec={}",
+                tenantId,
+                resolvedNode.graphId(),
+                resolvedNode.lifetimeId(),
+                resolvedNode.nodeName(),
+                planInput.getInputId(),
+                executionId);
         try {
             MaterializedNode materializedNode = materializeNode(resolvedNode, tenantId, executionId);
             PlanResult result = pythonProcessExecutor.executePlan(
@@ -45,6 +53,14 @@ public class ExecutorOrchestrationService {
                     planInput,
                     tenantId,
                     materializedNode.workingDirectory());
+            logger.info(
+                    "Executor completed plan tenant={} graph={} lifetime={} plan={} exec={} nextTasks={}",
+                    tenantId,
+                    resolvedNode.graphId(),
+                    resolvedNode.lifetimeId(),
+                    resolvedNode.nodeName(),
+                    executionId,
+                    result.getNextTaskNamesList());
             return buildPlanExecution(planInput, resolvedNode, tenantId, executionId, ExecutionStatus.EXECUTION_STATUS_SUCCEEDED, result);
         } catch (Exception e) {
             logger.error("Plan execution failed for tenant {} plan {}: {}", tenantId, planInput.getPlanName(), e.getMessage(), e);
@@ -56,6 +72,14 @@ public class ExecutorOrchestrationService {
     public TaskExecution handleTaskInput(String tenantId, TaskInput taskInput) {
         ResolvedExecutorNode resolvedNode = sourceResolver.resolveTaskNode(tenantId, taskInput);
         String executionId = UUID.randomUUID().toString();
+        logger.info(
+                "Executor starting task tenant={} graph={} lifetime={} task={} inputId={} exec={}",
+                tenantId,
+                resolvedNode.graphId(),
+                resolvedNode.lifetimeId(),
+                resolvedNode.nodeName(),
+                taskInput.getInputId(),
+                executionId);
         try {
             MaterializedNode materializedNode = materializeNode(resolvedNode, tenantId, executionId);
             TaskResult result = pythonProcessExecutor.executeTask(
@@ -63,6 +87,13 @@ public class ExecutorOrchestrationService {
                     taskInput,
                     tenantId,
                     materializedNode.workingDirectory());
+            logger.info(
+                    "Executor completed task tenant={} graph={} lifetime={} task={} exec={}",
+                    tenantId,
+                    resolvedNode.graphId(),
+                    resolvedNode.lifetimeId(),
+                    resolvedNode.nodeName(),
+                    executionId);
             return buildTaskExecution(taskInput, resolvedNode, tenantId, executionId, ExecutionStatus.EXECUTION_STATUS_SUCCEEDED, result);
         } catch (Exception e) {
             logger.error("Task execution failed for tenant {} task {}: {}", tenantId, taskInput.getTaskName(), e.getMessage(), e);
@@ -171,6 +202,15 @@ public class ExecutorOrchestrationService {
             throw new IllegalStateException(
                     "Resolved script '" + resolvedNode.scriptFileName() + "' was not materialized for " + resolvedNode.nodeType());
         }
+
+        logger.debug(
+                "Materialized executor node tenant={} graph={} lifetime={} nodeType={} node={} workingDir={}",
+                tenantId,
+                resolvedNode.graphId(),
+                resolvedNode.lifetimeId(),
+                resolvedNode.nodeType(),
+                resolvedNode.nodeName(),
+                workingDirectory);
 
         return new MaterializedNode(workingDirectory, scriptPath);
     }

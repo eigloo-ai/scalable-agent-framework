@@ -4,7 +4,6 @@ import ai.eigloo.proto.model.Common.TaskExecution;
 import ai.eigloo.proto.model.Common.PlanExecution;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -24,12 +23,9 @@ public class GuardrailEngine {
     
     private static final Logger logger = LoggerFactory.getLogger(GuardrailEngine.class);
     
-    private final KafkaTemplate<String, Object> kafkaTemplate;
     private final Map<String, Object> executionStatus = new ConcurrentHashMap<>();
     
-    public GuardrailEngine(KafkaTemplate<String, Object> kafkaTemplate) {
-        this.kafkaTemplate = kafkaTemplate;
-    }
+    public GuardrailEngine() {}
     
     /**
      * Evaluate guardrails for a TaskExecution protobuf message.

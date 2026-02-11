@@ -22,10 +22,10 @@ public class ControlPlaneProducer {
     
     private static final Logger logger = LoggerFactory.getLogger(ControlPlaneProducer.class);
     
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final KafkaTemplate<String, byte[]> kafkaTemplate;
     private final ObjectMapper objectMapper;
     
-    public ControlPlaneProducer(KafkaTemplate<String, Object> kafkaTemplate, ObjectMapper objectMapper) {
+    public ControlPlaneProducer(KafkaTemplate<String, byte[]> kafkaTemplate, ObjectMapper objectMapper) {
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
     }
@@ -39,7 +39,8 @@ public class ControlPlaneProducer {
     public void sendTaskExecution(Map<String, Object> taskExecution, String tenantId) {
         try {
             logger.debug("Sending task execution to executor queue for tenant {}: {}", tenantId, taskExecution);
-            kafkaTemplate.send(TopicNames.taskExecutions(tenantId), taskExecution);
+            byte[] payload = toPayload(taskExecution);
+            kafkaTemplate.send(TopicNames.taskExecutions(tenantId), payload);
             logger.info("Task execution sent to executor queue for tenant: {}", tenantId);
         } catch (Exception e) {
             logger.error("Failed to send task execution to executor queue for tenant: {}", tenantId, e);
@@ -55,7 +56,8 @@ public class ControlPlaneProducer {
     public void sendPlanExecution(Map<String, Object> planExecution, String tenantId) {
         try {
             logger.debug("Sending plan execution to executor queue for tenant {}: {}", tenantId, planExecution);
-            kafkaTemplate.send(TopicNames.planExecutions(tenantId), planExecution);
+            byte[] payload = toPayload(planExecution);
+            kafkaTemplate.send(TopicNames.planExecutions(tenantId), payload);
             logger.info("Plan execution sent to executor queue for tenant: {}", tenantId);
         } catch (Exception e) {
             logger.error("Failed to send plan execution to executor queue for tenant: {}", tenantId, e);
@@ -79,7 +81,8 @@ public class ControlPlaneProducer {
             );
             
             logger.debug("Sending task execution rejection for tenant {}: {}", tenantId, rejection);
-            kafkaTemplate.send(TopicNames.planInputs(tenantId), rejection);
+            byte[] payload = toPayload(rejection);
+            kafkaTemplate.send(TopicNames.planInputs(tenantId), payload);
             logger.info("Task execution rejection sent for tenant: {}", tenantId);
         } catch (Exception e) {
             logger.error("Failed to send task execution rejection for tenant: {}", tenantId, e);
@@ -103,10 +106,19 @@ public class ControlPlaneProducer {
             );
             
             logger.debug("Sending plan execution rejection for tenant {}: {}", tenantId, rejection);
-            kafkaTemplate.send(TopicNames.planInputs(tenantId), rejection);
+            byte[] payload = toPayload(rejection);
+            kafkaTemplate.send(TopicNames.planInputs(tenantId), payload);
             logger.info("Plan execution rejection sent for tenant: {}", tenantId);
         } catch (Exception e) {
             logger.error("Failed to send plan execution rejection for tenant: {}", tenantId, e);
+        }
+    }
+
+    private byte[] toPayload(Map<String, Object> payload) {
+        try {
+            return objectMapper.writeValueAsBytes(payload);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to serialize payload for control plane topic publish", e);
         }
     }
 } 

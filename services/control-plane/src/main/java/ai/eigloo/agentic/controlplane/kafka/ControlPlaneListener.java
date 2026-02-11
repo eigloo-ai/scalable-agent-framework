@@ -3,6 +3,7 @@ package ai.eigloo.agentic.controlplane.kafka;
 import ai.eigloo.agentic.common.ProtobufUtils;
 import ai.eigloo.agentic.common.TopicNames;
 import ai.eigloo.agentic.controlplane.service.ExecutionRouter;
+import ai.eigloo.proto.model.Common.ExecutionHeader;
 import ai.eigloo.proto.model.Common.TaskExecution;
 import ai.eigloo.proto.model.Common.PlanExecution;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -70,6 +71,14 @@ public class ControlPlaneListener {
                 acknowledgment.acknowledge();
                 return;
             }
+
+            logger.info(
+                    "Control-plane consumed persisted task execution {}",
+                    executionContext(
+                            taskExecution.hasHeader() ? taskExecution.getHeader() : null,
+                            tenantId,
+                            topic,
+                            record.key()));
             
             // Process task execution for guardrail evaluation and routing
             executionRouter.routeTaskExecution(taskExecution, tenantId);
@@ -118,6 +127,14 @@ public class ControlPlaneListener {
                 acknowledgment.acknowledge();
                 return;
             }
+
+            logger.info(
+                    "Control-plane consumed persisted plan execution {}",
+                    executionContext(
+                            planExecution.hasHeader() ? planExecution.getHeader() : null,
+                            tenantId,
+                            topic,
+                            record.key()));
             
             // Process plan execution for guardrail evaluation and routing
             executionRouter.routePlanExecution(planExecution, tenantId);
@@ -129,5 +146,21 @@ public class ControlPlaneListener {
             logger.error("Error processing plan execution protobuf message from topic {}: {}", topic, e.getMessage(), e);
             // Don't acknowledge on error to allow retry
         }
+    }
+
+    private static String executionContext(ExecutionHeader header, String tenantId, String topic, String key) {
+        if (header == null) {
+            return String.format("tenant=%s topic=%s key=%s", tenantId, topic, key);
+        }
+        return String.format(
+                "tenant=%s graph=%s lifetime=%s node=%s exec=%s status=%s topic=%s key=%s",
+                tenantId,
+                header.getGraphId(),
+                header.getLifetimeId(),
+                header.getName(),
+                header.getExecId(),
+                header.getStatus(),
+                topic,
+                key);
     }
 } 

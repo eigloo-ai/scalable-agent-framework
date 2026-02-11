@@ -1,6 +1,8 @@
 spring:
   application:
     name: data-plane
+  flyway:
+    baseline-on-migrate: true
   
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -43,3 +45,12 @@ management:
 
 server:
   port: 8080 
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  jpa:
+    hibernate:
+      ddl-auto: update

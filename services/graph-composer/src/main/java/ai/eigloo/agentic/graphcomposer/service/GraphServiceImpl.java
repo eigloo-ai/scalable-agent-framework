@@ -44,18 +44,21 @@ public class GraphServiceImpl implements GraphService {
     private final TaskRepository taskRepository;
     private final FileService fileService;
     private final ValidationService validationService;
+    private final GraphExecutionBootstrapPublisher graphExecutionBootstrapPublisher;
 
     @Autowired
     public GraphServiceImpl(AgentGraphRepository agentGraphRepository,
                            PlanRepository planRepository,
                            TaskRepository taskRepository,
                            FileService fileService,
-                           ValidationService validationService) {
+                           ValidationService validationService,
+                           GraphExecutionBootstrapPublisher graphExecutionBootstrapPublisher) {
         this.agentGraphRepository = agentGraphRepository;
         this.planRepository = planRepository;
         this.taskRepository = taskRepository;
         this.fileService = fileService;
         this.validationService = validationService;
+        this.graphExecutionBootstrapPublisher = graphExecutionBootstrapPublisher;
     }
 
     @Override
@@ -173,19 +176,40 @@ public class GraphServiceImpl implements GraphService {
         if (!validation.isValid()) {
             throw new GraphValidationException("Cannot execute invalid graph", validation.getErrors(), validation.getWarnings());
         }
-        
-        // Update status to running
+
+        List<String> entryPlanNames = resolveEntryPlanNames(graphDto);
+        if (entryPlanNames.isEmpty()) {
+            throw new GraphValidationException(
+                    "Cannot execute graph without entry plans",
+                    List.of("No entry plans found. At least one plan must have no upstream tasks."),
+                    List.of());
+        }
+
+        String lifetimeId = UUID.randomUUID().toString();
+
         graph.setStatus(GraphStatus.RUNNING);
         graph.setUpdatedAt(LocalDateTime.now());
         agentGraphRepository.save(graph);
-        
-        // Create execution response (placeholder implementation)
+
+        try {
+            for (String planName : entryPlanNames) {
+                graphExecutionBootstrapPublisher.publishStartPlanInput(tenantId, graphId, lifetimeId, planName);
+            }
+        } catch (Exception e) {
+            graph.setStatus(GraphStatus.ERROR);
+            graph.setUpdatedAt(LocalDateTime.now());
+            agentGraphRepository.save(graph);
+            throw new IllegalStateException("Failed to enqueue graph execution bootstrap messages", e);
+        }
+
         ExecutionResponse response = new ExecutionResponse();
-        response.setExecutionId(UUID.randomUUID().toString());
-        response.setStatus("SUBMITTED");
-        response.setMessage("Graph submitted for execution");
+        response.setExecutionId(lifetimeId);
+        response.setStatus("RUNNING");
+        response.setMessage("Graph execution started with " + entryPlanNames.size() + " entry plan(s)");
         
-        logger.info("Graph {} submitted for execution with ID: {}", graphId, response.getExecutionId());
+        logger.info(
+                "Graph {} execution started for tenant {} lifetime {} entryPlans={}",
+                graphId, tenantId, lifetimeId, entryPlanNames);
         return response;
     }
 
@@ -347,6 +371,7 @@ public class GraphServiceImpl implements GraphService {
     private ai.eigloo.agentic.graphcomposer.dto.GraphStatus convertToDtoStatus(GraphStatus entityStatus) {
         return switch (entityStatus) {
             case NEW -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.NEW;
+            case ACTIVE -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.ACTIVE;
             case RUNNING -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.RUNNING;
             case STOPPED -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.STOPPED;
             case ERROR -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.ERROR;
@@ -356,10 +381,24 @@ public class GraphServiceImpl implements GraphService {
     private GraphStatus convertToEntityStatus(ai.eigloo.agentic.graphcomposer.dto.GraphStatus dtoStatus) {
         return switch (dtoStatus) {
             case NEW -> GraphStatus.NEW;
+            case ACTIVE -> GraphStatus.ACTIVE;
             case RUNNING -> GraphStatus.RUNNING;
             case STOPPED -> GraphStatus.STOPPED;
             case ERROR -> GraphStatus.ERROR;
         };
+    }
+
+    private List<String> resolveEntryPlanNames(AgentGraphDto graphDto) {
+        if (graphDto.getPlans() == null) {
+            return List.of();
+        }
+
+        return graphDto.getPlans().stream()
+                .filter(plan -> plan.getName() != null && !plan.getName().isBlank())
+                .filter(plan -> plan.getUpstreamTaskIds() == null || plan.getUpstreamTaskIds().isEmpty())
+                .map(PlanDto::getName)
+                .distinct()
+                .toList();
     }
     
     /**

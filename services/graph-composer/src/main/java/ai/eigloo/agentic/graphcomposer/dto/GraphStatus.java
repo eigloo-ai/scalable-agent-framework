@@ -9,6 +9,11 @@ public enum GraphStatus {
      * Graph has been created but not yet submitted for execution
      */
     NEW,
+
+    /**
+     * Graph has been loaded and is ready to execute
+     */
+    ACTIVE,
     
     /**
      * Graph is currently being executed

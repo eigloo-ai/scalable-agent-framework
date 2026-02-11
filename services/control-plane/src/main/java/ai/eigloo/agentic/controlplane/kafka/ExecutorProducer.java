@@ -54,7 +54,15 @@ public class ExecutorProducer {
             
             String messageKey = TopicNames.graphNodeKey(planInput.getGraphId(), planInput.getPlanName());
             
-            logger.debug("Publishing PlanInput protobuf to topic {}: {}", topic, messageKey);
+            logger.info(
+                    "Publishing PlanInput tenant={} graph={} lifetime={} plan={} inputId={} topic={} key={}",
+                    tenantId,
+                    planInput.getGraphId(),
+                    planInput.getLifetimeId(),
+                    planInput.getPlanName(),
+                    planInput.getInputId(),
+                    topic,
+                    messageKey);
             
             ProducerRecord<String, byte[]> record = new ProducerRecord<>(topic, messageKey, message);
             return kafkaTemplate.send(record);
@@ -86,7 +94,15 @@ public class ExecutorProducer {
             
             String messageKey = TopicNames.graphNodeKey(taskInput.getGraphId(), taskInput.getTaskName());
             
-            logger.debug("Publishing TaskInput protobuf to topic {}: {}", topic, messageKey);
+            logger.info(
+                    "Publishing TaskInput tenant={} graph={} lifetime={} task={} inputId={} topic={} key={}",
+                    tenantId,
+                    taskInput.getGraphId(),
+                    taskInput.getLifetimeId(),
+                    taskInput.getTaskName(),
+                    taskInput.getInputId(),
+                    topic,
+                    messageKey);
             
             ProducerRecord<String, byte[]> record = new ProducerRecord<>(topic, messageKey, message);
             return kafkaTemplate.send(record);
