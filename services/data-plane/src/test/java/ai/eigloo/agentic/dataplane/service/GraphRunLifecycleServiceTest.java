@@ -28,7 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,7 +58,7 @@ class GraphRunLifecycleServiceTest {
                 planExecutionRepository,
                 taskExecutionRepository,
                 agentGraphRepository);
-        when(graphRunRepository.save(any(GraphRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(graphRunRepository.save(any(GraphRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -155,5 +158,29 @@ class GraphRunLifecycleServiceTest {
         verify(planExecutionRepository).findByTenantIdAndGraphIdAndLifetimeIdOrderByCreatedAtAsc("tenant-a", "graph-a", "life-2");
         verify(taskExecutionRepository).findByTenantIdAndGraphIdAndLifetimeIdOrderByCreatedAtAsc("tenant-a", "graph-a", "life-2");
         verify(agentGraphRepository).findByIdAndTenantIdWithAllRelations(eq("graph-a"), eq("tenant-a"));
+    }
+
+    @Test
+    void onPlanExecutionPersisted_shouldIgnoreUpdatesForTerminalRun() {
+        GraphRunEntity existingRun = new GraphRunEntity();
+        existingRun.setLifetimeId("life-3");
+        existingRun.setTenantId("tenant-a");
+        existingRun.setGraphId("graph-a");
+        existingRun.setStatus(GraphRunStatus.CANCELED);
+
+        when(graphRunRepository.findByLifetimeIdAndTenantId("life-3", "tenant-a"))
+                .thenReturn(Optional.of(existingRun));
+
+        PlanExecutionEntity planExecution = new PlanExecutionEntity();
+        planExecution.setTenantId("tenant-a");
+        planExecution.setGraphId("graph-a");
+        planExecution.setLifetimeId("life-3");
+        planExecution.setStatus(PlanExecutionEntity.ExecutionStatus.EXECUTION_STATUS_SUCCEEDED);
+        planExecution.setCreatedAt(Instant.now());
+
+        service.onPlanExecutionPersisted(planExecution);
+
+        verify(graphRunRepository, never()).save(any(GraphRunEntity.class));
+        verifyNoInteractions(planExecutionRepository, taskExecutionRepository, agentGraphRepository);
     }
 }

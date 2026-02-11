@@ -431,7 +431,7 @@ class GraphServiceImplTest {
     void updateGraphStatus_ShouldUpdateStatus() {
         // Given
         String graphId = "test-graph-id";
-        GraphStatusUpdate statusUpdate = new GraphStatusUpdate(GraphStatus.RUNNING);
+        GraphStatusUpdate statusUpdate = new GraphStatusUpdate(GraphStatus.ACTIVE);
         
         when(agentGraphRepository.findById(graphId)).thenReturn(Optional.of(testGraphEntity));
         when(agentGraphRepository.save(any(AgentGraphEntity.class))).thenReturn(testGraphEntity);
@@ -442,5 +442,36 @@ class GraphServiceImplTest {
         // Then
         verify(agentGraphRepository).findById(graphId);
         verify(agentGraphRepository).save(any(AgentGraphEntity.class));
+    }
+
+    @Test
+    void updateGraphStatus_ShouldRejectIllegalTransition() {
+        // Given
+        String graphId = "test-graph-id";
+        testGraphEntity.setStatus(ai.eigloo.agentic.graph.entity.GraphStatus.ACTIVE);
+        GraphStatusUpdate statusUpdate = new GraphStatusUpdate(GraphStatus.NEW);
+
+        when(agentGraphRepository.findById(graphId)).thenReturn(Optional.of(testGraphEntity));
+
+        // When + Then
+        assertThrows(IllegalArgumentException.class, () -> graphService.updateGraphStatus(graphId, statusUpdate));
+        verify(agentGraphRepository).findById(graphId);
+        verify(agentGraphRepository, never()).save(any(AgentGraphEntity.class));
+    }
+
+    @Test
+    void submitForExecution_ShouldRejectArchivedGraph() {
+        // Given
+        String graphId = "test-graph-id";
+        String tenantId = "test-tenant";
+        testGraphEntity.setStatus(ai.eigloo.agentic.graph.entity.GraphStatus.ARCHIVED);
+
+        when(agentGraphRepository.findByIdAndTenantId(graphId, tenantId)).thenReturn(Optional.of(testGraphEntity));
+
+        // When + Then
+        assertThrows(IllegalArgumentException.class, () -> graphService.submitForExecution(graphId, tenantId));
+        verifyNoInteractions(graphRunRepository);
+        verify(graphExecutionBootstrapPublisher, never())
+                .publishStartPlanInput(anyString(), anyString(), anyString(), anyString());
     }
 }

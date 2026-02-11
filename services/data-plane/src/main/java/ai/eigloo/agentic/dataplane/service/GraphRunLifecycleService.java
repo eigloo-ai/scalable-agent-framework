@@ -94,8 +94,11 @@ public class GraphRunLifecycleService {
         GraphRunEntity graphRun = graphRunRepository.findByLifetimeIdAndTenantId(update.lifetimeId(), update.tenantId())
                 .orElseGet(() -> createPlaceholderRun(update));
 
-        GraphRunStatus previousStatus = graphRun.getStatus();
-        if (previousStatus == GraphRunStatus.FAILED) {
+        GraphRunStatus previousStatus = currentStatus(graphRun);
+        if (previousStatus.isTerminal()) {
+            logger.debug(
+                    "Skipping lifecycle update for terminal run tenant={} graph={} lifetime={} status={}",
+                    graphRun.getTenantId(), graphRun.getGraphId(), graphRun.getLifetimeId(), previousStatus);
             return;
         }
 
@@ -110,12 +113,10 @@ public class GraphRunLifecycleService {
         if (graphRun.getStartedAt() == null) {
             graphRun.setStartedAt(fallbackInstant(update.createdAt()));
         }
-        if (graphRun.getStatus() == null || graphRun.getStatus() == GraphRunStatus.QUEUED) {
-            graphRun.setStatus(GraphRunStatus.RUNNING);
-        }
+        transitionRunStatus(graphRun, GraphRunStatus.RUNNING, "execution persisted");
 
         if (update.succeeded() && isRunComplete(update.tenantId(), update.graphId(), update.lifetimeId())) {
-            graphRun.setStatus(GraphRunStatus.SUCCEEDED);
+            transitionRunStatus(graphRun, GraphRunStatus.SUCCEEDED, "all graph edges resolved");
             graphRun.setCompletedAt(fallbackInstant(update.createdAt()));
             graphRun.setErrorMessage(null);
         }
@@ -134,7 +135,7 @@ public class GraphRunLifecycleService {
         graphRun.setLifetimeId(update.lifetimeId());
         graphRun.setTenantId(update.tenantId());
         graphRun.setGraphId(update.graphId());
-        graphRun.setStatus(GraphRunStatus.RUNNING);
+        graphRun.setStatus(GraphRunStatus.QUEUED);
         graphRun.setCreatedAt(fallbackInstant(update.createdAt()));
         graphRun.setStartedAt(fallbackInstant(update.createdAt()));
         logger.warn(
@@ -144,11 +145,32 @@ public class GraphRunLifecycleService {
     }
 
     private void markFailed(GraphRunEntity graphRun, String errorMessage, Instant eventTime) {
-        graphRun.setStatus(GraphRunStatus.FAILED);
+        transitionRunStatus(graphRun, GraphRunStatus.FAILED, "execution failure persisted");
         graphRun.setStartedAt(graphRun.getStartedAt() == null ? fallbackInstant(eventTime) : graphRun.getStartedAt());
         graphRun.setCompletedAt(fallbackInstant(eventTime));
         graphRun.setErrorMessage(errorMessage);
         graphRunRepository.save(graphRun);
+    }
+
+    private static GraphRunStatus currentStatus(GraphRunEntity graphRun) {
+        return graphRun.getStatus() != null ? graphRun.getStatus() : GraphRunStatus.QUEUED;
+    }
+
+    private boolean transitionRunStatus(GraphRunEntity graphRun, GraphRunStatus targetStatus, String reason) {
+        GraphRunStatus currentStatus = currentStatus(graphRun);
+        if (!currentStatus.canTransitionTo(targetStatus)) {
+            logger.warn(
+                    "Illegal graph run transition ignored tenant={} graph={} lifetime={} {} -> {} reason={}",
+                    graphRun.getTenantId(),
+                    graphRun.getGraphId(),
+                    graphRun.getLifetimeId(),
+                    currentStatus,
+                    targetStatus,
+                    reason);
+            return false;
+        }
+        graphRun.setStatus(targetStatus);
+        return true;
     }
 
     private boolean isRunComplete(String tenantId, String graphId, String lifetimeId) {
