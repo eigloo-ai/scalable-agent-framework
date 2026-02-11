@@ -32,11 +32,23 @@ class ValidationServiceImplTest {
         testPlan.setName("test_plan");
         testPlan.setLabel("Test Plan");
         testPlan.setUpstreamTaskIds(Set.of("test_task"));
+        testPlan.setFiles(List.of(executorFile("plan.py", """
+                from agentic_common.pb import PlanResult
+                
+                def plan(plan_input):
+                    return PlanResult()
+                """)));
 
         testTask = new TaskDto();
         testTask.setName("test_task");
         testTask.setLabel("Test Task");
         testTask.setUpstreamPlanId("test_plan");
+        testTask.setFiles(List.of(executorFile("task.py", """
+                from agentic_common.pb import TaskResult
+                
+                def task(task_input):
+                    return TaskResult()
+                """)));
 
         testGraph = new AgentGraphDto();
         testGraph.setName("Test Graph");
@@ -92,6 +104,37 @@ class ValidationServiceImplTest {
         // Then
         assertFalse(result.isValid());
         assertTrue(result.getErrors().contains("Tenant ID cannot be empty"));
+    }
+
+    @Test
+    void validateGraph_ShouldReturnInvalid_WhenPlanFileMissingPlanFunction() {
+        // Given
+        testPlan.setFiles(List.of(executorFile("plan.py", """
+                from agentic_common.pb import PlanResult
+                
+                def run(plan_input):
+                    return PlanResult()
+                """)));
+
+        // When
+        ValidationResult result = validationService.validateGraph(testGraph);
+
+        // Then
+        assertFalse(result.isValid());
+        assertTrue(result.getErrors().contains("Plan 'test_plan' file 'plan.py' must define function 'def plan(...)'"));
+    }
+
+    @Test
+    void validateGraph_ShouldReturnInvalid_WhenTaskMissingTaskScriptFile() {
+        // Given
+        testTask.setFiles(List.of(executorFile("notes.txt", "not python")));
+
+        // When
+        ValidationResult result = validationService.validateGraph(testGraph);
+
+        // Then
+        assertFalse(result.isValid());
+        assertTrue(result.getErrors().contains("Task 'test_task' must include file 'task.py'"));
     }
 
     @Test
@@ -348,5 +391,12 @@ class ValidationServiceImplTest {
         // Then
         assertFalse(result.isValid());
         assertTrue(result.getErrors().get(0).contains("not a valid Python identifier"));
+    }
+
+    private static ExecutorFileDto executorFile(String name, String contents) {
+        ExecutorFileDto file = new ExecutorFileDto();
+        file.setName(name);
+        file.setContents(contents);
+        return file;
     }
 }

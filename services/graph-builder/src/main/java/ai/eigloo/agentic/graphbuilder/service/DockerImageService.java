@@ -44,7 +44,7 @@ public class DockerImageService {
     private final DockerImageRepository dockerImageRepository;
     private final DockerClient dockerClient;
     
-    @Value("${graph-bundle.docker.base-image:services/executors-py:latest}")
+    @Value("${graph-bundle.docker.base-image:services/executor-java:latest}")
     private String baseImage;
     
     @Value("${graph-bundle.docker.build-timeout:300}")

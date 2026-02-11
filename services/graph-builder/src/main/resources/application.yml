@@ -86,8 +86,8 @@ graph-bundle:
       retry-attempts: 3
       retry-delay: 5s
     
-    # Base image reference for executors-py (Requirement 5.8)
-    base-image: ${DOCKER_BASE_IMAGE:services/executors-py:latest}
+    # Base image reference for executor-java (Requirement 5.8)
+    base-image: ${DOCKER_BASE_IMAGE:services/executor-java:latest}
     
     # Image naming and tagging configuration
     image:

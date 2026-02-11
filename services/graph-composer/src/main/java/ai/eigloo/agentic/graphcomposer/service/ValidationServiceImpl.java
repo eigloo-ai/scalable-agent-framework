@@ -1,11 +1,11 @@
 package ai.eigloo.agentic.graphcomposer.service;
 
 import ai.eigloo.agentic.graphcomposer.dto.AgentGraphDto;
+import ai.eigloo.agentic.graphcomposer.dto.ExecutorFileDto;
 import ai.eigloo.agentic.graphcomposer.dto.NodeNameValidationRequest;
 import ai.eigloo.agentic.graphcomposer.dto.PlanDto;
 import ai.eigloo.agentic.graphcomposer.dto.TaskDto;
 import ai.eigloo.agentic.graphcomposer.dto.ValidationResult;
-import ai.eigloo.agentic.graphcomposer.dto.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,6 +25,8 @@ public class ValidationServiceImpl implements ValidationService {
     
     // Python identifier pattern: starts with letter or underscore, followed by letters, digits, or underscores
     private static final Pattern PYTHON_IDENTIFIER_PATTERN = Pattern.compile("^[a-zA-Z_][a-zA-Z0-9_]*$");
+    private static final Pattern PLAN_FUNCTION_PATTERN = Pattern.compile("(?m)^\\s*(?:async\\s+)?def\\s+plan\\s*\\(");
+    private static final Pattern TASK_FUNCTION_PATTERN = Pattern.compile("(?m)^\\s*(?:async\\s+)?def\\s+task\\s*\\(");
     
     // Python keywords that cannot be used as identifiers
     private static final Set<String> PYTHON_KEYWORDS = Set.of(
@@ -75,6 +77,11 @@ public class ValidationServiceImpl implements ValidationService {
         ValidationResult planValidation = validatePlanUpstreamConstraints(graph);
         errors.addAll(planValidation.getErrors());
         warnings.addAll(planValidation.getWarnings());
+
+        // Validate executor contract requirements
+        ValidationResult contractValidation = validateExecutorContracts(graph);
+        errors.addAll(contractValidation.getErrors());
+        warnings.addAll(contractValidation.getWarnings());
         
         // Validate connectivity
         ValidationResult connectivityValidation = validateConnectivity(graph);
@@ -171,6 +178,64 @@ public class ValidationServiceImpl implements ValidationService {
         }
         
         return new ValidationResult(errors.isEmpty(), errors, warnings);
+    }
+
+    private ValidationResult validateExecutorContracts(AgentGraphDto graph) {
+        List<String> errors = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+
+        if (graph.getPlans() != null) {
+            for (PlanDto plan : graph.getPlans()) {
+                String planName = nodeDisplayName(plan != null ? plan.getName() : null, "plan");
+                ExecutorFileDto planFile = findFileByName(plan != null ? plan.getFiles() : null, "plan.py");
+                if (planFile == null) {
+                    errors.add("Plan '" + planName + "' must include file 'plan.py'");
+                    continue;
+                }
+
+                String contents = planFile.getContents() == null ? "" : planFile.getContents();
+                if (!PLAN_FUNCTION_PATTERN.matcher(contents).find()) {
+                    errors.add("Plan '" + planName + "' file 'plan.py' must define function 'def plan(...)'");
+                }
+            }
+        }
+
+        if (graph.getTasks() != null) {
+            for (TaskDto task : graph.getTasks()) {
+                String taskName = nodeDisplayName(task != null ? task.getName() : null, "task");
+                ExecutorFileDto taskFile = findFileByName(task != null ? task.getFiles() : null, "task.py");
+                if (taskFile == null) {
+                    errors.add("Task '" + taskName + "' must include file 'task.py'");
+                    continue;
+                }
+
+                String contents = taskFile.getContents() == null ? "" : taskFile.getContents();
+                if (!TASK_FUNCTION_PATTERN.matcher(contents).find()) {
+                    errors.add("Task '" + taskName + "' file 'task.py' must define function 'def task(...)'");
+                }
+            }
+        }
+
+        return new ValidationResult(errors.isEmpty(), errors, warnings);
+    }
+
+    private static ExecutorFileDto findFileByName(List<ExecutorFileDto> files, String expectedName) {
+        if (files == null) {
+            return null;
+        }
+        for (ExecutorFileDto file : files) {
+            if (file != null && expectedName.equals(file.getName())) {
+                return file;
+            }
+        }
+        return null;
+    }
+
+    private static String nodeDisplayName(String name, String fallbackPrefix) {
+        if (name == null || name.trim().isEmpty()) {
+            return "<unnamed " + fallbackPrefix + ">";
+        }
+        return name.trim();
     }
 
     @Override
