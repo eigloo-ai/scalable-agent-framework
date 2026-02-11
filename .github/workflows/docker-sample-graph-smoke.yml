@@ -23,6 +23,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build runtime service jars
+        run: >
+          mvn -B -ntp
+          -pl services/graph-composer,services/executor-java,services/data-plane,services/control-plane
+          -am package -DskipTests -DskipITs
+
       - name: Start Docker runtime services
         run: docker compose up -d --build kafka postgres graph-composer executor-java data-plane control-plane
 
