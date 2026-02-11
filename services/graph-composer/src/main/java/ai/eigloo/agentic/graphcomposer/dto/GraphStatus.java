@@ -14,19 +14,9 @@ public enum GraphStatus {
      * Graph has been loaded and is ready to execute
      */
     ACTIVE,
-    
+
     /**
-     * Graph is currently being executed
+     * Graph has been retired and is no longer executable.
      */
-    RUNNING,
-    
-    /**
-     * Graph execution has been stopped or completed successfully
-     */
-    STOPPED,
-    
-    /**
-     * Graph execution encountered an error
-     */
-    ERROR
+    ARCHIVED
 }

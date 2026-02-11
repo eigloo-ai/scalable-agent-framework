@@ -130,7 +130,7 @@ public class GraphServiceImpl implements GraphService {
         
         // Update status if provided
         if (graphDto.getStatus() != null) {
-            existingGraph.setStatus(convertToEntityStatus(graphDto.getStatus()));
+            transitionGraphStatus(existingGraph, convertToEntityStatus(graphDto.getStatus()), "updateGraph");
         }
         
         // Update plans and tasks using single-transaction cascading approach
@@ -176,6 +176,10 @@ public class GraphServiceImpl implements GraphService {
         
         AgentGraphEntity graph = agentGraphRepository.findByIdAndTenantId(graphId, tenantId)
                 .orElseThrow(() -> new GraphNotFoundException("Graph not found: " + graphId));
+
+        if (graph.getStatus() == GraphStatus.ARCHIVED) {
+            throw new IllegalArgumentException("Archived graph cannot be executed");
+        }
         
         // Validate graph before execution
         AgentGraphDto graphDto = convertToDto(graph);
@@ -194,7 +198,7 @@ public class GraphServiceImpl implements GraphService {
 
         String lifetimeId = UUID.randomUUID().toString();
         if (graph.getStatus() != GraphStatus.ACTIVE) {
-            graph.setStatus(GraphStatus.ACTIVE);
+            transitionGraphStatus(graph, GraphStatus.ACTIVE, "submitForExecution");
             graph.setUpdatedAt(LocalDateTime.now());
             agentGraphRepository.save(graph);
         }
@@ -249,8 +253,8 @@ public class GraphServiceImpl implements GraphService {
         
         AgentGraphEntity graph = agentGraphRepository.findById(graphId)
                 .orElseThrow(() -> new GraphNotFoundException("Graph not found: " + graphId));
-        
-        graph.setStatus(convertToEntityStatus(statusUpdate.getStatus()));
+
+        transitionGraphStatus(graph, convertToEntityStatus(statusUpdate.getStatus()), "updateGraphStatus");
         graph.setUpdatedAt(LocalDateTime.now());
         agentGraphRepository.save(graph);
         
@@ -402,9 +406,7 @@ public class GraphServiceImpl implements GraphService {
         return switch (entityStatus) {
             case NEW -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.NEW;
             case ACTIVE -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.ACTIVE;
-            case RUNNING -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.RUNNING;
-            case STOPPED -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.STOPPED;
-            case ERROR -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.ERROR;
+            case ARCHIVED -> ai.eigloo.agentic.graphcomposer.dto.GraphStatus.ARCHIVED;
         };
     }
 
@@ -412,10 +414,27 @@ public class GraphServiceImpl implements GraphService {
         return switch (dtoStatus) {
             case NEW -> GraphStatus.NEW;
             case ACTIVE -> GraphStatus.ACTIVE;
-            case RUNNING -> GraphStatus.RUNNING;
-            case STOPPED -> GraphStatus.STOPPED;
-            case ERROR -> GraphStatus.ERROR;
+            case ARCHIVED -> GraphStatus.ARCHIVED;
         };
+    }
+
+    private static void transitionGraphStatus(AgentGraphEntity graph, GraphStatus targetStatus, String operation) {
+        if (graph == null) {
+            throw new IllegalArgumentException("Graph is required for status transition");
+        }
+        if (targetStatus == null) {
+            throw new IllegalArgumentException("Target graph status is required");
+        }
+
+        GraphStatus currentStatus = graph.getStatus() != null ? graph.getStatus() : GraphStatus.NEW;
+        if (!currentStatus.canTransitionTo(targetStatus)) {
+            throw new IllegalArgumentException(String.format(
+                    "Illegal graph status transition during %s: %s -> %s",
+                    operation,
+                    currentStatus,
+                    targetStatus));
+        }
+        graph.setStatus(targetStatus);
     }
 
     private List<String> resolveEntryPlanNames(AgentGraphDto graphDto) {

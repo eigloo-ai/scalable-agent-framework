@@ -71,6 +71,6 @@ docker compose exec -T postgres psql -U agentic -d agentic \
 - Graph definition status (`agent_graphs.status`):
   - `NEW`: graph exists but has not been activated for execution
   - `ACTIVE`: graph is loaded and ready to run
-  - `RUNNING`, `STOPPED`, `ERROR`: legacy states still represented in the model
+  - `ARCHIVED`: graph is retired and execution requests are rejected
 - Graph run status (`graph_runs.status`, keyed by `lifetime_id`):
-  - `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`
+  - `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED`

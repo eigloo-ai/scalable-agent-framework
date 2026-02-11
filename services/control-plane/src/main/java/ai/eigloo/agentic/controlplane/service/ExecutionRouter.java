@@ -2,6 +2,7 @@ package ai.eigloo.agentic.controlplane.service;
 
 import ai.eigloo.agentic.controlplane.kafka.ExecutorProducer;
 import ai.eigloo.proto.model.Common.ExecutionHeader;
+import ai.eigloo.proto.model.Common.ExecutionStatus;
 import ai.eigloo.proto.model.Common.PlanExecution;
 import ai.eigloo.proto.model.Common.PlanInput;
 import ai.eigloo.proto.model.Common.TaskExecution;
@@ -25,14 +26,17 @@ public class ExecutionRouter {
     private final ExecutorProducer executorProducer;
     private final GuardrailEngine guardrailEngine;
     private final TaskLookupService taskLookupService;
+    private final ExecutionStateGuardService executionStateGuardService;
 
     public ExecutionRouter(
             ExecutorProducer executorProducer,
             GuardrailEngine guardrailEngine,
-            TaskLookupService taskLookupService) {
+            TaskLookupService taskLookupService,
+            ExecutionStateGuardService executionStateGuardService) {
         this.executorProducer = executorProducer;
         this.guardrailEngine = guardrailEngine;
         this.taskLookupService = taskLookupService;
+        this.executionStateGuardService = executionStateGuardService;
     }
 
     /**
@@ -45,17 +49,31 @@ public class ExecutionRouter {
                 return;
             }
 
-            boolean approved = guardrailEngine.evaluateTaskExecution(taskExecution, tenantId);
-            if (!approved) {
-                logger.warn("Task execution rejected by guardrails for tenant {}", tenantId);
-                return;
-            }
-
             ExecutionHeader header = taskExecution.getHeader();
             if (!hasRequiredHeaderContext(header)) {
                 logger.error(
                         "Rejecting TaskExecution '{}' with missing graph/lifetime context for tenant {}",
                         header.getExecId(), tenantId);
+                return;
+            }
+            if (header.getStatus() != ExecutionStatus.EXECUTION_STATUS_SUCCEEDED) {
+                logger.info(
+                        "Ignoring TaskExecution with non-terminal-success status tenant={} graph={} lifetime={} task={} exec={} status={}",
+                        tenantId,
+                        header.getGraphId(),
+                        header.getLifetimeId(),
+                        header.getName(),
+                        header.getExecId(),
+                        header.getStatus());
+                return;
+            }
+            if (!executionStateGuardService.canRoute(tenantId, header)) {
+                return;
+            }
+
+            boolean approved = guardrailEngine.evaluateTaskExecution(taskExecution, tenantId);
+            if (!approved) {
+                logger.warn("Task execution rejected by guardrails for tenant {}", tenantId);
                 return;
             }
 
@@ -107,12 +125,6 @@ public class ExecutionRouter {
                 return;
             }
 
-            boolean approved = guardrailEngine.evaluatePlanExecution(planExecution, tenantId);
-            if (!approved) {
-                logger.warn("Plan execution rejected by guardrails for tenant {}", tenantId);
-                return;
-            }
-
             if (!planExecution.hasResult()) {
                 logger.warn("Plan execution has no result payload for tenant {}", tenantId);
                 return;
@@ -129,6 +141,26 @@ public class ExecutionRouter {
                 logger.error(
                         "Rejecting PlanExecution '{}' with missing graph/lifetime context for tenant {}",
                         header.getExecId(), tenantId);
+                return;
+            }
+            if (header.getStatus() != ExecutionStatus.EXECUTION_STATUS_SUCCEEDED) {
+                logger.info(
+                        "Ignoring PlanExecution with non-terminal-success status tenant={} graph={} lifetime={} plan={} exec={} status={}",
+                        tenantId,
+                        header.getGraphId(),
+                        header.getLifetimeId(),
+                        header.getName(),
+                        header.getExecId(),
+                        header.getStatus());
+                return;
+            }
+            if (!executionStateGuardService.canRoute(tenantId, header)) {
+                return;
+            }
+
+            boolean approved = guardrailEngine.evaluatePlanExecution(planExecution, tenantId);
+            if (!approved) {
+                logger.warn("Plan execution rejected by guardrails for tenant {}", tenantId);
                 return;
             }
 

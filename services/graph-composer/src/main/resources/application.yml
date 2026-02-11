@@ -133,7 +133,7 @@ spring:
     init:
       mode: always
       continue-on-error: false
-      schema-locations: classpath:db/sql/graph_status_constraint.sql
+      schema-locations: classpath:db/sql/graph_status_constraint.sql,classpath:db/sql/graph_run_status_constraint.sql
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
 

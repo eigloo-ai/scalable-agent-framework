@@ -13,19 +13,26 @@ public enum GraphStatus {
      * Graph has been loaded and is ready to execute.
      */
     ACTIVE,
-    
+
     /**
-     * Graph is currently being executed.
+     * Graph has been retired and cannot be executed.
      */
-    RUNNING,
-    
+    ARCHIVED;
+
     /**
-     * Graph execution has been stopped.
+     * Returns true when a graph can transition from the current status to the target status.
      */
-    STOPPED,
-    
-    /**
-     * Graph execution encountered an error.
-     */
-    ERROR
+    public boolean canTransitionTo(GraphStatus target) {
+        if (target == null) {
+            return false;
+        }
+        if (this == target) {
+            return true;
+        }
+        return switch (this) {
+            case NEW -> target == ACTIVE || target == ARCHIVED;
+            case ACTIVE -> target == ARCHIVED;
+            case ARCHIVED -> false;
+        };
+    }
 }

@@ -300,38 +300,38 @@ class EntityRelationshipsIntegrationTest {
     @Test
     void shouldFindGraphsByStatus() {
         // Given
-        AgentGraphEntity runningGraph = new AgentGraphEntity(
+        AgentGraphEntity activeGraph = new AgentGraphEntity(
                 UUID.randomUUID().toString(),
                 "test-tenant",
-                "running-graph",
-                GraphStatus.RUNNING
+                "active-graph",
+                GraphStatus.ACTIVE
         );
-        AgentGraphEntity errorGraph = new AgentGraphEntity(
+        AgentGraphEntity archivedGraph = new AgentGraphEntity(
                 UUID.randomUUID().toString(),
                 "test-tenant",
-                "error-graph",
-                GraphStatus.ERROR
+                "archived-graph",
+                GraphStatus.ARCHIVED
         );
-        agentGraphRepository.save(runningGraph);
-        agentGraphRepository.save(errorGraph);
+        agentGraphRepository.save(activeGraph);
+        agentGraphRepository.save(archivedGraph);
 
         // When
         List<AgentGraphEntity> newGraphs = agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
                 "test-tenant", GraphStatus.NEW);
-        List<AgentGraphEntity> runningGraphs = agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
-                "test-tenant", GraphStatus.RUNNING);
-        List<AgentGraphEntity> errorGraphs = agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
-                "test-tenant", GraphStatus.ERROR);
+        List<AgentGraphEntity> activeGraphs = agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
+                "test-tenant", GraphStatus.ACTIVE);
+        List<AgentGraphEntity> archivedGraphs = agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
+                "test-tenant", GraphStatus.ARCHIVED);
 
         // Then
         assertThat(newGraphs).hasSize(1);
         assertThat(newGraphs.get(0).getName()).isEqualTo("test-graph");
         
-        assertThat(runningGraphs).hasSize(1);
-        assertThat(runningGraphs.get(0).getName()).isEqualTo("running-graph");
-        
-        assertThat(errorGraphs).hasSize(1);
-        assertThat(errorGraphs.get(0).getName()).isEqualTo("error-graph");
+        assertThat(activeGraphs).hasSize(1);
+        assertThat(activeGraphs.get(0).getName()).isEqualTo("active-graph");
+
+        assertThat(archivedGraphs).hasSize(1);
+        assertThat(archivedGraphs.get(0).getName()).isEqualTo("archived-graph");
     }
 
     @Test

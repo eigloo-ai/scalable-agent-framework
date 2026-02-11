@@ -22,5 +22,34 @@ public enum GraphRunStatus {
     /**
      * Execution failed.
      */
-    FAILED
+    FAILED,
+
+    /**
+     * Execution was canceled.
+     */
+    CANCELED;
+
+    /**
+     * Returns true when this status is terminal.
+     */
+    public boolean isTerminal() {
+        return this == SUCCEEDED || this == FAILED || this == CANCELED;
+    }
+
+    /**
+     * Returns true when a run can transition from the current status to the target status.
+     */
+    public boolean canTransitionTo(GraphRunStatus target) {
+        if (target == null) {
+            return false;
+        }
+        if (this == target) {
+            return true;
+        }
+        return switch (this) {
+            case QUEUED -> target == RUNNING || target == FAILED || target == CANCELED;
+            case RUNNING -> target == SUCCEEDED || target == FAILED || target == CANCELED;
+            case SUCCEEDED, FAILED, CANCELED -> false;
+        };
+    }
 }
