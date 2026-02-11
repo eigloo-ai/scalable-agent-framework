@@ -6,6 +6,7 @@ DATA_PLANE_URL="http://localhost:8081"
 TENANT_ID="tenant-dev"
 GRAPH_NAME="sample-graph-plan-a-plan-b-e2e-$(date +%s)"
 TIMEOUT_SECONDS=300
+STARTUP_TIMEOUT_SECONDS=""
 POLL_INTERVAL_SECONDS=2
 START_STACK=false
 BUILD_IMAGES=false
@@ -20,6 +21,8 @@ Options:
   --tenant-id TENANT        Tenant id (default: tenant-dev)
   --graph-name NAME         Graph name (default: sample-graph-plan-a-plan-b-e2e-<timestamp>)
   --timeout-seconds N       Timeout for full run completion (default: 300)
+  --startup-timeout-seconds N
+                            Timeout for startup health checks (default: --timeout-seconds)
   --poll-interval-seconds N Poll interval while waiting for run completion (default: 2)
   --start-stack             Start required Docker services before smoke run
   --build-images            When used with --start-stack, build images before start
@@ -49,6 +52,10 @@ while [[ $# -gt 0 ]]; do
       TIMEOUT_SECONDS="$2"
       shift 2
       ;;
+    --startup-timeout-seconds)
+      STARTUP_TIMEOUT_SECONDS="$2"
+      shift 2
+      ;;
     --poll-interval-seconds)
       POLL_INTERVAL_SECONDS="$2"
       shift 2
@@ -73,6 +80,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$STARTUP_TIMEOUT_SECONDS" ]]; then
+  STARTUP_TIMEOUT_SECONDS="$TIMEOUT_SECONDS"
+fi
+
+dump_runtime_diagnostics() {
+  if ! command -v docker >/dev/null 2>&1; then
+    return
+  fi
+
+  echo "==== docker compose ps ====" >&2
+  docker compose ps >&2 || true
+
+  for service in graph-composer data-plane control-plane executor-java kafka postgres; do
+    echo "==== docker logs --tail 120 ${service} ====" >&2
+    docker logs --tail 120 "${service}" >&2 || true
+  done
+}
+
 wait_for_http() {
   local url="$1"
   local timeout="$2"
@@ -84,6 +109,7 @@ wait_for_http() {
     fi
     if (( $(date +%s) - start_ts >= timeout )); then
       echo "Timed out waiting for endpoint: $url" >&2
+      dump_runtime_diagnostics
       return 1
     fi
     sleep 2
@@ -98,10 +124,10 @@ if [[ "$START_STACK" == "true" ]]; then
   docker compose up "${compose_args[@]}" kafka postgres graph-composer executor-java data-plane control-plane
 fi
 
-wait_for_http "${BASE_URL%/}/actuator/health" 180
-wait_for_http "${DATA_PLANE_URL%/}/actuator/health" 180
-wait_for_http "http://localhost:8082/actuator/health" 180
-wait_for_http "http://localhost:8083/actuator/health" 180
+wait_for_http "${BASE_URL%/}/actuator/health" "$STARTUP_TIMEOUT_SECONDS"
+wait_for_http "${DATA_PLANE_URL%/}/actuator/health" "$STARTUP_TIMEOUT_SECONDS"
+wait_for_http "http://localhost:8082/actuator/health" "$STARTUP_TIMEOUT_SECONDS"
+wait_for_http "http://localhost:8083/actuator/health" "$STARTUP_TIMEOUT_SECONDS"
 
 echo "Seeding and executing sample graph tenant=${TENANT_ID} graph=${GRAPH_NAME}"
 load_output="$("./scripts/load_sample_graph.sh" \
