@@ -2,7 +2,6 @@ package ai.eigloo.agentic.controlplane.kafka;
 
 import ai.eigloo.agentic.common.TopicNames;
 import ai.eigloo.agentic.common.ProtobufUtils;
-import ai.eigloo.proto.model.Common.TaskExecution;
 import ai.eigloo.proto.model.Common.PlanExecution;
 import ai.eigloo.proto.model.Common.PlanInput;
 import ai.eigloo.proto.model.Common.TaskInput;
@@ -46,13 +45,14 @@ public class ExecutorProducer {
     public CompletableFuture<SendResult<String, byte[]>> publishPlanInput(String tenantId, PlanInput planInput) {
         try {
             String topic = TopicNames.planInputs(tenantId);
+            validateInputContext(planInput.getGraphId(), planInput.getLifetimeId(), "PlanInput");
             
             byte[] message = ProtobufUtils.serializePlanInput(planInput);
             if (message == null) {
                 throw new RuntimeException("Failed to serialize PlanInput");
             }
             
-            String messageKey = planInput.getPlanName();
+            String messageKey = TopicNames.graphNodeKey(planInput.getGraphId(), planInput.getPlanName());
             
             logger.debug("Publishing PlanInput protobuf to topic {}: {}", topic, messageKey);
             
@@ -77,13 +77,14 @@ public class ExecutorProducer {
     public CompletableFuture<SendResult<String, byte[]>> publishTaskInput(String tenantId, TaskInput taskInput) {
         try {
             String topic = TopicNames.taskInputs(tenantId);
+            validateInputContext(taskInput.getGraphId(), taskInput.getLifetimeId(), "TaskInput");
             
             byte[] message = ProtobufUtils.serializeTaskInput(taskInput);
             if (message == null) {
                 throw new RuntimeException("Failed to serialize TaskInput");
             }
             
-            String messageKey = taskInput.getTaskName();
+            String messageKey = TopicNames.graphNodeKey(taskInput.getGraphId(), taskInput.getTaskName());
             
             logger.debug("Publishing TaskInput protobuf to topic {}: {}", topic, messageKey);
             
@@ -143,4 +144,13 @@ public class ExecutorProducer {
             }
         });
     }
-} 
+
+    private static void validateInputContext(String graphId, String lifetimeId, String messageType) {
+        if (graphId == null || graphId.isBlank()) {
+            throw new IllegalArgumentException(messageType + ".graph_id is required");
+        }
+        if (lifetimeId == null || lifetimeId.isBlank()) {
+            throw new IllegalArgumentException(messageType + ".lifetime_id is required");
+        }
+    }
+}

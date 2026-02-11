@@ -42,7 +42,7 @@ public class TaskExecutionListener {
      * @param acknowledgment manual acknowledgment
      */
     @KafkaListener(
-        topics = "#{@kafkaTopicPatterns.taskExecutionsPattern}",
+        topicPattern = "#{@kafkaTopicPatterns.taskExecutionsPattern}",
         groupId = "data-plane-task-executions",
         containerFactory = "tenantAwareKafkaListenerContainerFactory"
     )

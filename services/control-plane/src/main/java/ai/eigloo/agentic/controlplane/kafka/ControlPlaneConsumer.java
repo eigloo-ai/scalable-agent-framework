@@ -44,7 +44,7 @@ public class ControlPlaneConsumer {
      * @param acknowledgment manual acknowledgment
      */
     @KafkaListener(
-        topics = "#{@kafkaTopicPatterns.persistedTaskExecutionsPattern}",
+        topicPattern = "#{@kafkaTopicPatterns.persistedTaskExecutionsPattern}",
         groupId = "control-plane-consumer-group",
         containerFactory = "tenantAwareKafkaListenerContainerFactory"
     )
@@ -92,7 +92,7 @@ public class ControlPlaneConsumer {
      * @param acknowledgment manual acknowledgment
      */
     @KafkaListener(
-        topics = "#{@kafkaTopicPatterns.persistedPlanExecutionsPattern}",
+        topicPattern = "#{@kafkaTopicPatterns.persistedPlanExecutionsPattern}",
         groupId = "control-plane-consumer-group",
         containerFactory = "tenantAwareKafkaListenerContainerFactory"
     )

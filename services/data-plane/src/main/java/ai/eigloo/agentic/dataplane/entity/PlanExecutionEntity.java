@@ -49,7 +49,7 @@ public class PlanExecutionEntity {
     private Instant createdAt;
     
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", length = 20, nullable = false)
+    @Column(name = "status", length = 50, nullable = false)
     private ExecutionStatus status;
     
     @Column(name = "edge_taken", length = 100)

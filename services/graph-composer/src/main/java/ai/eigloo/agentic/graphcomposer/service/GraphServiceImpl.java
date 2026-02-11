@@ -75,12 +75,12 @@ public class GraphServiceImpl implements GraphService {
     @Transactional(readOnly = true)
     public AgentGraphDto getGraph(String graphId, String tenantId) {
         logger.info("Getting graph {} for tenant: {}", graphId, tenantId);
-        
-        // Use optimized query with fetch joins to avoid N+1 problems
-        AgentGraphEntity graph = agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)
+
+        // Avoid loading all nested eager collections in one go to prevent Hibernate multiple-bag fetch errors.
+        AgentGraphEntity graph = agentGraphRepository.findByIdAndTenantId(graphId, tenantId)
                 .orElseThrow(() -> new GraphNotFoundException("Graph not found: " + graphId));
-        
-        return convertToDtoOptimized(graph);
+
+        return convertToDto(graph);
     }
 
     @Override

@@ -203,8 +203,8 @@ public class ExecutorOrchestrationService {
         if (message == null || message.isBlank()) {
             message = throwable.getClass().getSimpleName();
         }
-        if (message.length() > 2000) {
-            return message.substring(0, 2000);
+        if (message.length() > 1000) {
+            return message.substring(0, 1000);
         }
         return message;
     }

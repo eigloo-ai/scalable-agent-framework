@@ -105,11 +105,10 @@ class GraphServiceImplTest {
         // Given
         String graphId = "test-graph-id";
         String tenantId = "test-tenant";
-        // Set up empty collections for plans and tasks to avoid null pointer exceptions
-        testGraphEntity.setPlans(List.of());
-        testGraphEntity.setTasks(List.of());
-        
-        when(agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)).thenReturn(Optional.of(testGraphEntity));
+
+        when(agentGraphRepository.findByIdAndTenantId(graphId, tenantId)).thenReturn(Optional.of(testGraphEntity));
+        when(planRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
+        when(taskRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
 
         // When
         AgentGraphDto result = graphService.getGraph(graphId, tenantId);
@@ -120,7 +119,9 @@ class GraphServiceImplTest {
         assertEquals(testGraphEntity.getName(), result.getName());
         assertEquals(testGraphEntity.getTenantId(), result.getTenantId());
         
-        verify(agentGraphRepository).findByIdAndTenantIdWithAllRelations(graphId, tenantId);
+        verify(agentGraphRepository).findByIdAndTenantId(graphId, tenantId);
+        verify(planRepository).findByAgentGraphIdWithFiles(graphId);
+        verify(taskRepository).findByAgentGraphIdWithFiles(graphId);
     }
 
     @Test
@@ -128,13 +129,15 @@ class GraphServiceImplTest {
         // Given
         String graphId = "non-existent-id";
         String tenantId = "test-tenant";
-        when(agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)).thenReturn(Optional.empty());
+        when(agentGraphRepository.findByIdAndTenantId(graphId, tenantId)).thenReturn(Optional.empty());
 
         // When & Then
         assertThrows(GraphService.GraphNotFoundException.class, 
                     () -> graphService.getGraph(graphId, tenantId));
         
-        verify(agentGraphRepository).findByIdAndTenantIdWithAllRelations(graphId, tenantId);
+        verify(agentGraphRepository).findByIdAndTenantId(graphId, tenantId);
+        verifyNoInteractions(planRepository);
+        verifyNoInteractions(taskRepository);
     }
 
     @Test

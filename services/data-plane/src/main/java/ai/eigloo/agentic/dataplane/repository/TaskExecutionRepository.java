@@ -84,34 +84,6 @@ public interface TaskExecutionRepository extends JpaRepository<TaskExecutionEnti
     Page<TaskExecutionEntity> findByTenantIdAndGraphId(String tenantId, String graphId, Pageable pageable);
     
     /**
-     * Find task executions by tenant and task type.
-     * 
-     * @param tenantId the tenant identifier
-     * @param taskType the task type
-     * @return list of task executions for the task type
-     */
-    List<TaskExecutionEntity> findByTenantIdAndTaskType(String tenantId, String taskType);
-    
-    /**
-     * Find task executions by tenant and task type with pagination.
-     * 
-     * @param tenantId the tenant identifier
-     * @param taskType the task type
-     * @param pageable pagination parameters
-     * @return page of task executions for the task type
-     */
-    Page<TaskExecutionEntity> findByTenantIdAndTaskType(String tenantId, String taskType, Pageable pageable);
-    
-    /**
-     * Find task executions by tenant and parent ID.
-     * 
-     * @param tenantId the tenant identifier
-     * @param parentId the parent execution identifier
-     * @return list of child task executions
-     */
-    List<TaskExecutionEntity> findByTenantIdAndParentId(String tenantId, String parentId);
-    
-    /**
      * Find task executions created within a time range for a tenant.
      * 
      * @param tenantId the tenant identifier
@@ -158,22 +130,4 @@ public interface TaskExecutionRepository extends JpaRepository<TaskExecutionEnti
     @Query("SELECT t FROM TaskExecutionEntity t WHERE t.tenantId = :tenantId ORDER BY t.createdAt DESC")
     Optional<TaskExecutionEntity> findFirstByTenantIdOrderByCreatedAtDesc(@Param("tenantId") String tenantId);
     
-    /**
-     * Find task executions with errors for a tenant.
-     * 
-     * @param tenantId the tenant identifier
-     * @return list of task executions with error messages
-     */
-    @Query("SELECT t FROM TaskExecutionEntity t WHERE t.tenantId = :tenantId AND t.errorMessage IS NOT NULL")
-    List<TaskExecutionEntity> findWithErrorsByTenantId(@Param("tenantId") String tenantId);
-    
-    /**
-     * Find task executions with errors for a tenant with pagination.
-     * 
-     * @param tenantId the tenant identifier
-     * @param pageable pagination parameters
-     * @return page of task executions with error messages
-     */
-    @Query("SELECT t FROM TaskExecutionEntity t WHERE t.tenantId = :tenantId AND t.errorMessage IS NOT NULL")
-    Page<TaskExecutionEntity> findWithErrorsByTenantId(@Param("tenantId") String tenantId, Pageable pageable);
-} 
+}

@@ -2,6 +2,7 @@ package ai.eigloo.agentic.dataplane.kafka;
 
 import ai.eigloo.agentic.common.TopicNames;
 import ai.eigloo.agentic.common.ProtobufUtils;
+import ai.eigloo.proto.model.Common.ExecutionHeader;
 import ai.eigloo.proto.model.Common.TaskExecution;
 import ai.eigloo.proto.model.Common.PlanExecution;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -42,7 +43,8 @@ public class ControlPlaneProducer {
         
         try {
             String topic = TopicNames.persistedTaskExecutions(tenantId);
-            String messageKey = taskExecution.getHeader().getName();
+            ExecutionHeader header = requiredHeader(taskExecution.hasHeader() ? taskExecution.getHeader() : null, "TaskExecution");
+            String messageKey = TopicNames.graphNodeKey(header.getGraphId(), header.getName());
             
             byte[] message = ProtobufUtils.serializeTaskExecution(taskExecution);
             if (message == null) {
@@ -75,7 +77,8 @@ public class ControlPlaneProducer {
         
         try {
             String topic = TopicNames.persistedPlanExecutions(tenantId);
-            String messageKey = planExecution.getHeader().getName();
+            ExecutionHeader header = requiredHeader(planExecution.hasHeader() ? planExecution.getHeader() : null, "PlanExecution");
+            String messageKey = TopicNames.graphNodeKey(header.getGraphId(), header.getName());
             
             byte[] message = ProtobufUtils.serializePlanExecution(planExecution);
             if (message == null) {
@@ -116,4 +119,20 @@ public class ControlPlaneProducer {
             }
         });
     }
-} 
+
+    private static ExecutionHeader requiredHeader(ExecutionHeader header, String messageType) {
+        if (header == null) {
+            throw new IllegalArgumentException(messageType + ".header is required");
+        }
+        if (header.getGraphId().isBlank()) {
+            throw new IllegalArgumentException(messageType + ".header.graph_id is required");
+        }
+        if (header.getLifetimeId().isBlank()) {
+            throw new IllegalArgumentException(messageType + ".header.lifetime_id is required");
+        }
+        if (header.getName().isBlank()) {
+            throw new IllegalArgumentException(messageType + ".header.name is required");
+        }
+        return header;
+    }
+}

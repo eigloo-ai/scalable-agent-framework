@@ -1,6 +1,7 @@
 package ai.eigloo.agentic.controlplane.service;
 
 import ai.eigloo.agentic.controlplane.kafka.ExecutorProducer;
+import ai.eigloo.proto.model.Common.ExecutionHeader;
 import ai.eigloo.proto.model.Common.PlanExecution;
 import ai.eigloo.proto.model.Common.PlanInput;
 import ai.eigloo.proto.model.Common.TaskExecution;
@@ -41,14 +42,28 @@ public class ExecutionRouter {
         try {
             logger.debug("Routing task execution for tenant {}", tenantId);
 
+            if (!taskExecution.hasHeader()) {
+                logger.error("Rejecting TaskExecution without header for tenant {}", tenantId);
+                return;
+            }
+
             boolean approved = guardrailEngine.evaluateTaskExecution(taskExecution, tenantId);
             if (!approved) {
                 logger.warn("Task execution rejected by guardrails for tenant {}", tenantId);
                 return;
             }
 
-            String graphId = taskExecution.hasHeader() ? taskExecution.getHeader().getGraphId() : "";
-            String taskName = taskExecution.hasHeader() ? taskExecution.getHeader().getName() : "";
+            ExecutionHeader header = taskExecution.getHeader();
+            if (!hasRequiredHeaderContext(header)) {
+                logger.error(
+                        "Rejecting TaskExecution '{}' with missing graph/lifetime context for tenant {}",
+                        header.getExecId(), tenantId);
+                return;
+            }
+
+            String graphId = header.getGraphId();
+            String lifetimeId = header.getLifetimeId();
+            String taskName = header.getName();
             Optional<String> downstreamPlanName =
                     taskLookupService.lookupDownstreamPlanName(taskName, tenantId, graphId);
 
@@ -63,6 +78,8 @@ public class ExecutionRouter {
                     .setInputId(UUID.randomUUID().toString())
                     .setPlanName(downstreamPlanName.get())
                     .addTaskExecutions(taskExecution)
+                    .setGraphId(graphId)
+                    .setLifetimeId(lifetimeId)
                     .build();
 
             executorProducer.publishPlanInput(tenantId, planInput);
@@ -81,6 +98,11 @@ public class ExecutionRouter {
         try {
             logger.debug("Routing plan execution for tenant {}", tenantId);
 
+            if (!planExecution.hasHeader()) {
+                logger.error("Rejecting PlanExecution without header for tenant {}", tenantId);
+                return;
+            }
+
             boolean approved = guardrailEngine.evaluatePlanExecution(planExecution, tenantId);
             if (!approved) {
                 logger.warn("Plan execution rejected by guardrails for tenant {}", tenantId);
@@ -98,8 +120,17 @@ public class ExecutionRouter {
                 return;
             }
 
-            String graphId = planExecution.hasHeader() ? planExecution.getHeader().getGraphId() : "";
-            String planName = planExecution.hasHeader() ? planExecution.getHeader().getName() : "";
+            ExecutionHeader header = planExecution.getHeader();
+            if (!hasRequiredHeaderContext(header)) {
+                logger.error(
+                        "Rejecting PlanExecution '{}' with missing graph/lifetime context for tenant {}",
+                        header.getExecId(), tenantId);
+                return;
+            }
+
+            String graphId = header.getGraphId();
+            String lifetimeId = header.getLifetimeId();
+            String planName = header.getName();
             List<String> resolvedTaskNames = taskLookupService.lookupExecutableTaskNames(
                     nextTaskNames,
                     tenantId,
@@ -112,6 +143,8 @@ public class ExecutionRouter {
                         .setInputId(UUID.randomUUID().toString())
                         .setTaskName(taskName)
                         .setPlanExecution(planExecution)
+                        .setGraphId(graphId)
+                        .setLifetimeId(lifetimeId)
                         .build();
 
                 executorProducer.publishTaskInput(tenantId, taskInput);
@@ -126,5 +159,12 @@ public class ExecutionRouter {
         } catch (Exception e) {
             logger.error("Error routing plan execution for tenant {}: {}", tenantId, e.getMessage(), e);
         }
+    }
+
+    private static boolean hasRequiredHeaderContext(ExecutionHeader header) {
+        return header != null
+                && !header.getName().isBlank()
+                && !header.getGraphId().isBlank()
+                && !header.getLifetimeId().isBlank();
     }
 }

@@ -30,7 +30,7 @@ public class TaskInputListener {
     }
 
     @KafkaListener(
-            topics = "#{@kafkaTopicPatterns.taskInputsPattern}",
+            topicPattern = "#{@kafkaTopicPatterns.taskInputsPattern}",
             groupId = "executor-java-task-inputs",
             containerFactory = "tenantAwareKafkaListenerContainerFactory"
     )
@@ -49,6 +49,13 @@ public class TaskInputListener {
             TaskInput taskInput = ProtobufUtils.deserializeTaskInput(record.value());
             if (taskInput == null) {
                 logger.error("Could not deserialize TaskInput from topic {}", topic);
+                acknowledgment.acknowledge();
+                return;
+            }
+            if (taskInput.getGraphId().isBlank() || taskInput.getLifetimeId().isBlank()) {
+                logger.error(
+                        "Rejecting TaskInput '{}' for task '{}' due to missing graph_id/lifetime_id",
+                        taskInput.getInputId(), taskInput.getTaskName());
                 acknowledgment.acknowledge();
                 return;
             }

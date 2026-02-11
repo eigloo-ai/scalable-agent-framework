@@ -85,6 +85,12 @@ message PlanInput {
 
   // Task executions that provide input to this plan
   repeated ai.eigloo.proto.model.TaskExecution task_executions = 3;
+
+  // Required graph context for execution routing and node lookup
+  string graph_id = 4;
+
+  // Required lifetime context for execution correlation
+  string lifetime_id = 5;
 }
 
 // TaskInput represents the input data for a Task execution
@@ -97,6 +103,12 @@ message TaskInput {
 
   // Plan execution that provides input to this task
   ai.eigloo.proto.model.PlanExecution plan_execution = 3;
+
+  // Required graph context for execution routing and node lookup
+  string graph_id = 4;
+
+  // Required lifetime context for execution correlation
+  string lifetime_id = 5;
 }
 
 

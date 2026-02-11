@@ -79,6 +79,23 @@ public class TopicNames {
     public static String taskInputs(String tenantId) {
         return "task-inputs-" + tenantId;
     }
+
+    /**
+     * Build a Kafka key that scopes node traffic to a graph.
+     *
+     * @param graphId graph identifier
+     * @param nodeName plan/task node name
+     * @return key in format: {graphId}:{nodeName}
+     */
+    public static String graphNodeKey(String graphId, String nodeName) {
+        if (graphId == null || graphId.isBlank()) {
+            throw new IllegalArgumentException("graphId is required for Kafka key construction");
+        }
+        if (nodeName == null || nodeName.isBlank()) {
+            throw new IllegalArgumentException("nodeName is required for Kafka key construction");
+        }
+        return graphId + ":" + nodeName;
+    }
     
 
     

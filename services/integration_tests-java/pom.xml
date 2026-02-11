@@ -45,6 +45,13 @@
             <artifactId>control-plane</artifactId>
             <version>1.0.0</version>
         </dependency>
+
+        <!-- Executor module -->
+        <dependency>
+            <groupId>ai.eigloo.agentic</groupId>
+            <artifactId>executor-java</artifactId>
+            <version>1.0.0</version>
+        </dependency>
         
         <!-- Spring Boot Test -->
         <dependency>
@@ -85,12 +92,6 @@
             <version>${dropwizard-metrics.version}</version>
         </dependency>
         
-        <!-- H2 Database for testing -->
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
     
     <build>

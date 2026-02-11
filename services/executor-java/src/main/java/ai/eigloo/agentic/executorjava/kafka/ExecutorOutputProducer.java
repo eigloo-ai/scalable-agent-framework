@@ -25,28 +25,58 @@ public class ExecutorOutputProducer {
     }
 
     public CompletableFuture<SendResult<String, byte[]>> publishPlanExecution(String tenantId, PlanExecution planExecution) {
-        byte[] payload = ProtobufUtils.serializePlanExecution(planExecution);
-        if (payload == null) {
+        try {
+            if (!planExecution.hasHeader()) {
+                throw new IllegalArgumentException("PlanExecution.header is required");
+            }
+            if (planExecution.getHeader().getLifetimeId().isBlank()) {
+                throw new IllegalArgumentException("PlanExecution.header.lifetime_id is required");
+            }
+
+            byte[] payload = ProtobufUtils.serializePlanExecution(planExecution);
+            if (payload == null) {
+                throw new IllegalStateException("Failed to serialize PlanExecution");
+            }
+
+            String topic = TopicNames.planExecutions(tenantId);
+            String key = TopicNames.graphNodeKey(
+                    planExecution.getHeader().getGraphId(),
+                    planExecution.getHeader().getName());
+
+            logger.debug("Publishing PlanExecution to topic {} key {}", topic, key);
+            return kafkaTemplate.send(new ProducerRecord<>(topic, key, payload));
+        } catch (Exception e) {
             CompletableFuture<SendResult<String, byte[]>> failed = new CompletableFuture<>();
-            failed.completeExceptionally(new IllegalStateException("Failed to serialize PlanExecution"));
+            failed.completeExceptionally(e);
             return failed;
         }
-        String topic = TopicNames.planExecutions(tenantId);
-        String key = planExecution.getHeader().getName();
-        logger.debug("Publishing PlanExecution to topic {} key {}", topic, key);
-        return kafkaTemplate.send(new ProducerRecord<>(topic, key, payload));
     }
 
     public CompletableFuture<SendResult<String, byte[]>> publishTaskExecution(String tenantId, TaskExecution taskExecution) {
-        byte[] payload = ProtobufUtils.serializeTaskExecution(taskExecution);
-        if (payload == null) {
+        try {
+            if (!taskExecution.hasHeader()) {
+                throw new IllegalArgumentException("TaskExecution.header is required");
+            }
+            if (taskExecution.getHeader().getLifetimeId().isBlank()) {
+                throw new IllegalArgumentException("TaskExecution.header.lifetime_id is required");
+            }
+
+            byte[] payload = ProtobufUtils.serializeTaskExecution(taskExecution);
+            if (payload == null) {
+                throw new IllegalStateException("Failed to serialize TaskExecution");
+            }
+
+            String topic = TopicNames.taskExecutions(tenantId);
+            String key = TopicNames.graphNodeKey(
+                    taskExecution.getHeader().getGraphId(),
+                    taskExecution.getHeader().getName());
+
+            logger.debug("Publishing TaskExecution to topic {} key {}", topic, key);
+            return kafkaTemplate.send(new ProducerRecord<>(topic, key, payload));
+        } catch (Exception e) {
             CompletableFuture<SendResult<String, byte[]>> failed = new CompletableFuture<>();
-            failed.completeExceptionally(new IllegalStateException("Failed to serialize TaskExecution"));
+            failed.completeExceptionally(e);
             return failed;
         }
-        String topic = TopicNames.taskExecutions(tenantId);
-        String key = taskExecution.getHeader().getName();
-        logger.debug("Publishing TaskExecution to topic {} key {}", topic, key);
-        return kafkaTemplate.send(new ProducerRecord<>(topic, key, payload));
     }
 }
