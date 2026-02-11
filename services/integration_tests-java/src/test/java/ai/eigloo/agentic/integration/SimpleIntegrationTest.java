@@ -1,6 +1,6 @@
 package ai.eigloo.agentic.integration;
 
-import      ai.eigloo.agentic.common.ProtobufUtils;
+import ai.eigloo.agentic.common.ProtobufUtils;
 import ai.eigloo.agentic.common.TenantAwareKafkaConfig;
 import ai.eigloo.agentic.common.TopicNames;
 import ai.eigloo.agentic.controlplane.ControlPlaneApplication;
@@ -39,7 +39,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -78,6 +77,8 @@ public class SimpleIntegrationTest {
     private static final Set<String> EXPECTED_PLAN_NAMES = Set.of("PlanA", "PlanB");
     private static final Set<String> EXPECTED_TASK_NAMES = Set.of("Task1A", "Task1B", "Task2");
     private static final String TENANT_ID = "tenantintegration";
+    private static final String FAILING_PLAN_NAME = "PlanFail";
+    private static final String BLOCKED_TASK_NAME = "TaskNever";
 
     private static final String PLAN_A_SCRIPT = """
             from agentic_common.pb import PlanResult
@@ -91,6 +92,13 @@ public class SimpleIntegrationTest {
 
             def plan(plan_input):
                 return PlanResult(next_task_names=["Task2"])
+            """;
+
+    private static final String FAILING_PLAN_SCRIPT = """
+            from agentic_common.pb import PlanResult
+
+            def plan(plan_input):
+                return PlanResult(next_task_names=["TaskNever"])
             """;
 
     private static final String TASK_SCRIPT = """
@@ -171,6 +179,24 @@ public class SimpleIntegrationTest {
         awaitAllNodesExecuted(tenantId, graphId, lifetimeId, Duration.ofSeconds(90));
     }
 
+    @Test
+    void shouldPersistPlanFailureAndNotExecuteDownstreamTasks() throws Exception {
+        String tenantId = TENANT_ID;
+        String graphId = UUID.randomUUID().toString();
+        String lifetimeId = UUID.randomUUID().toString();
+
+        seedFailingGraph(tenantId, graphId);
+        publishPlanInput(tenantId, graphId, lifetimeId, FAILING_PLAN_NAME);
+
+        awaitPlanFailureWithoutTaskExecution(
+                tenantId,
+                graphId,
+                lifetimeId,
+                FAILING_PLAN_NAME,
+                BLOCKED_TASK_NAME,
+                Duration.ofSeconds(90));
+    }
+
     private void seedSimpleGraph(String tenantId, String graphId) {
         AgentGraphRepository graphRepository = controlPlaneContext.getBean(AgentGraphRepository.class);
 
@@ -222,6 +248,44 @@ public class SimpleIntegrationTest {
         graphRepository.saveAndFlush(graph);
     }
 
+    private void seedFailingGraph(String tenantId, String graphId) {
+        AgentGraphRepository graphRepository = controlPlaneContext.getBean(AgentGraphRepository.class);
+
+        AgentGraphEntity graph = new AgentGraphEntity(graphId, tenantId, "integration-failing-graph", GraphStatus.ACTIVE);
+
+        PlanEntity failingPlan = new PlanEntity(
+                UUID.randomUUID().toString(),
+                FAILING_PLAN_NAME,
+                "Plan Fail",
+                "plan.py",
+                graph);
+        failingPlan.addFile(new ExecutorFileEntity(
+                UUID.randomUUID().toString(),
+                "plan.py",
+                FAILING_PLAN_SCRIPT,
+                "1.0.0",
+                failingPlan));
+
+        TaskEntity blockedTask = new TaskEntity(
+                UUID.randomUUID().toString(),
+                BLOCKED_TASK_NAME,
+                "Task Never",
+                "task.py",
+                graph,
+                failingPlan
+        );
+        blockedTask.addFile(new ExecutorFileEntity(
+                UUID.randomUUID().toString(),
+                "task.py",
+                TASK_SCRIPT,
+                "1.0.0",
+                blockedTask));
+
+        graph.addPlan(failingPlan);
+        graph.addTask(blockedTask);
+        graphRepository.saveAndFlush(graph);
+    }
+
     private void createTenantTopics(String tenantId) {
         Set<String> topicNames = Set.of(
                 TopicNames.planInputs(tenantId),
@@ -253,9 +317,13 @@ public class SimpleIntegrationTest {
     }
 
     private void publishInitialPlanInput(String tenantId, String graphId, String lifetimeId) throws Exception {
+        publishPlanInput(tenantId, graphId, lifetimeId, "PlanA");
+    }
+
+    private void publishPlanInput(String tenantId, String graphId, String lifetimeId, String planName) throws Exception {
         PlanInput input = PlanInput.newBuilder()
                 .setInputId(UUID.randomUUID().toString())
-                .setPlanName("PlanA")
+                .setPlanName(planName)
                 .setGraphId(graphId)
                 .setLifetimeId(lifetimeId)
                 .build();
@@ -264,7 +332,7 @@ public class SimpleIntegrationTest {
         assertNotNull(payload, "PlanInput serialization should not return null");
 
         String topic = TopicNames.planInputs(tenantId);
-        String key = TopicNames.graphNodeKey(graphId, "PlanA");
+        String key = TopicNames.graphNodeKey(graphId, planName);
 
         Properties producerProperties = new Properties();
         producerProperties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers());
@@ -316,6 +384,48 @@ public class SimpleIntegrationTest {
         List<PlanExecutionEntity> finalPlans = planRepository.findByTenantIdAndGraphId(tenantId, graphId);
         List<TaskExecutionEntity> finalTasks = taskRepository.findByTenantIdAndGraphId(tenantId, graphId);
         fail("Timed out waiting for graph execution. Plans=" + summarizePlans(finalPlans)
+                + " Tasks=" + summarizeTasks(finalTasks));
+    }
+
+    private void awaitPlanFailureWithoutTaskExecution(
+            String tenantId,
+            String graphId,
+            String expectedLifetimeId,
+            String expectedFailedPlanName,
+            String blockedTaskName,
+            Duration timeout) throws InterruptedException {
+        PlanExecutionRepository planRepository = dataPlaneContext.getBean(PlanExecutionRepository.class);
+        TaskExecutionRepository taskRepository = dataPlaneContext.getBean(TaskExecutionRepository.class);
+
+        Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            List<PlanExecutionEntity> planExecutions = planRepository.findByTenantIdAndGraphId(tenantId, graphId);
+            List<TaskExecutionEntity> taskExecutions = taskRepository.findByTenantIdAndGraphId(tenantId, graphId);
+
+            PlanExecutionEntity failedPlanExecution = planExecutions.stream()
+                    .filter(e -> expectedLifetimeId.equals(e.getLifetimeId()))
+                    .filter(e -> expectedFailedPlanName.equals(e.getName()))
+                    .filter(e -> e.getStatus() == PlanExecutionEntity.ExecutionStatus.EXECUTION_STATUS_FAILED)
+                    .findFirst()
+                    .orElse(null);
+
+            boolean blockedTaskExecuted = taskExecutions.stream()
+                    .filter(e -> expectedLifetimeId.equals(e.getLifetimeId()))
+                    .anyMatch(e -> blockedTaskName.equals(e.getName()));
+
+            if (failedPlanExecution != null && !blockedTaskExecuted) {
+                assertTrue(
+                        failedPlanExecution.getErrorMessage() != null && !failedPlanExecution.getErrorMessage().isBlank(),
+                        "Failed plan execution should include an error message");
+                return;
+            }
+
+            Thread.sleep(500);
+        }
+
+        List<PlanExecutionEntity> finalPlans = planRepository.findByTenantIdAndGraphId(tenantId, graphId);
+        List<TaskExecutionEntity> finalTasks = taskRepository.findByTenantIdAndGraphId(tenantId, graphId);
+        fail("Timed out waiting for expected plan failure. Plans=" + summarizePlans(finalPlans)
                 + " Tasks=" + summarizeTasks(finalTasks));
     }
 
@@ -417,6 +527,9 @@ public class SimpleIntegrationTest {
 
                 @Override
                 public PlanResult executePlan(Path scriptPath, PlanInput planInput, String tenantId, Path workingDirectory) {
+                    if (FAILING_PLAN_NAME.equals(planInput.getPlanName())) {
+                        throw new IllegalStateException("Intentional integration-test plan failure");
+                    }
                     if ("PlanA".equals(planInput.getPlanName())) {
                         return PlanResult.newBuilder()
                                 .addNextTaskNames("Task1A")

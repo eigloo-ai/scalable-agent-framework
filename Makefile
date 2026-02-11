@@ -30,8 +30,6 @@ help:
 	@echo "  proto      - Generate Python protobuf code from .proto files"
 	@echo "  gen-proto-py - Generate Python protobuf files for common-py"
 	@echo "  deps-common-py - Install dependencies for common-py"
-	@echo "  deps-executors-py - Install dependencies for executors-py"
-	@echo "  test-executor-py - Run executors-py tests (depends on gen-proto-py and deps)"
 	@echo "  install    - Install Python dependencies using uv"
 	@echo "  install-dev - Install development dependencies using uv"
 	@echo "  sync       - Sync dependencies with uv"
@@ -107,22 +105,6 @@ deps-common-py:
 	$(call check_python_version)
 	$(call create_venv)
 	@cd services/common-py && UV_PROJECT_ENVIRONMENT=$(UV_PROJECT_ENVIRONMENT) uv sync
-
-# Install dependencies for common-py
-# keep
-deps-executors-py: deps-common-py
-	@echo "Installing dependencies for common-py..."
-	$(call check_python_version)
-	$(call create_venv)
-	@cd services/executors-py && UV_PROJECT_ENVIRONMENT=$(UV_PROJECT_ENVIRONMENT) uv sync
-
-# Run executors-py tests
-# keep
-test-executors-py: gen-proto-py deps-executors-py
-	@echo "Running executors-py tests..."
-	$(call check_python_version)
-	$(call create_venv)
-	@cd services/executors-py && $(VENV_PYTHON) -m pytest tests/ -v
 
 # Install Python dependencies using uv
 install:

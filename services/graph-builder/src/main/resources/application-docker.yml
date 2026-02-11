@@ -13,7 +13,7 @@ graph-bundle:
     host: unix:///var/run/docker.sock
     
     # Base image for executors in container environment
-    base-image: executors-py:latest
+    base-image: executor-java:latest
     
     # Registry configuration for container environment
     image:

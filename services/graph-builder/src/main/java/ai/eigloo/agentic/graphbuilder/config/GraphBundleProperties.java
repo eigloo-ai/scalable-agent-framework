@@ -136,7 +136,7 @@ public class GraphBundleProperties {
         private String registryUrl = "";
         private Duration connectionTimeout = Duration.ofSeconds(30);
         private Duration readTimeout = Duration.ofSeconds(60);
-        private String baseImage = "services/executors-py:latest";
+        private String baseImage = "services/executor-java:latest";
         
         @NestedConfigurationProperty
         private Build build = new Build();
