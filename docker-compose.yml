@@ -128,7 +128,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/agentic
       SPRING_DATASOURCE_USERNAME: agentic
       SPRING_DATASOURCE_PASSWORD: agentic
-      EXECUTOR_PYTHON_COMMAND: python3
+      EXECUTOR_PYTHON_COMMAND: /opt/agentic/venv/bin/python
       EXECUTOR_PYTHON_COMMON_PY_PATH: /opt/agentic/common-py
     ports:
       - "8083:8083"
@@ -178,6 +178,8 @@ services:
       dockerfile: Dockerfile
     container_name: graph-composer
     depends_on:
+      kafka:
+        condition: service_healthy
       postgres:
         condition: service_healthy
     environment:
@@ -185,6 +187,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/agentic
       SPRING_DATASOURCE_USERNAME: agentic
       SPRING_DATASOURCE_PASSWORD: agentic
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8088:8080"
     healthcheck:

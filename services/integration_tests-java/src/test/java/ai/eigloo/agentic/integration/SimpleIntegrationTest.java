@@ -1,7 +1,6 @@
 package ai.eigloo.agentic.integration;
 
 import      ai.eigloo.agentic.common.ProtobufUtils;
-import ai.eigloo.agentic.common.KafkaTopicPatterns;
 import ai.eigloo.agentic.common.TenantAwareKafkaConfig;
 import ai.eigloo.agentic.common.TopicNames;
 import ai.eigloo.agentic.controlplane.ControlPlaneApplication;
@@ -46,9 +45,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.kafka.core.DefaultKafkaProducerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.core.ProducerFactory;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -178,7 +174,7 @@ public class SimpleIntegrationTest {
     private void seedSimpleGraph(String tenantId, String graphId) {
         AgentGraphRepository graphRepository = controlPlaneContext.getBean(AgentGraphRepository.class);
 
-        AgentGraphEntity graph = new AgentGraphEntity(graphId, tenantId, "integration-graph", GraphStatus.RUNNING);
+        AgentGraphEntity graph = new AgentGraphEntity(graphId, tenantId, "integration-graph", GraphStatus.ACTIVE);
 
         PlanEntity planA = new PlanEntity(UUID.randomUUID().toString(), "PlanA", "Plan A", "plan.py", graph);
         planA.addFile(new ExecutorFileEntity(UUID.randomUUID().toString(), "plan.py", PLAN_A_SCRIPT, "1.0.0", planA));
@@ -409,27 +405,6 @@ public class SimpleIntegrationTest {
     @Configuration(proxyBeanMethods = false)
     @Import({TenantAwareKafkaConfig.class})
     static class IntegrationKafkaTemplateConfig {
-        @Bean(name = "kafkaTopicPatterns")
-        @Primary
-        KafkaTopicPatterns kafkaTopicPatterns() {
-            return new KafkaTopicPatterns();
-        }
-
-        @Bean
-        ProducerFactory<String, byte[]> integrationProducerFactory(
-                @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
-            Map<String, Object> properties = new HashMap<>();
-            properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-            properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-            properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, ByteArraySerializer.class);
-            return new DefaultKafkaProducerFactory<>(properties);
-        }
-
-        @Bean
-        KafkaTemplate<String, byte[]> integrationKafkaTemplate(ProducerFactory<String, byte[]> integrationProducerFactory) {
-            return new KafkaTemplate<>(integrationProducerFactory);
-        }
-
         @Bean
         @Primary
         @ConditionalOnProperty(name = "spring.application.name", havingValue = "integration-executor-java")

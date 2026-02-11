@@ -201,6 +201,11 @@ def main() -> int:
         default=30.0,
         help="HTTP timeout per request in seconds (default: 30)",
     )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Immediately start graph execution after loading",
+    )
     args = parser.parse_args()
 
     graph_id = _find_or_create_graph(args.base_url, args.tenant_id, args.graph_name, args.timeout_seconds)
@@ -218,11 +223,20 @@ def main() -> int:
         base_url=args.base_url,
         method="PUT",
         path=f"/api/v1/graphs/{graph_id}/status",
-        payload={"status": "RUNNING"},
+        payload={"status": "ACTIVE"},
         timeout_seconds=args.timeout_seconds,
     )
 
     tenant_query = urllib.parse.urlencode({"tenantId": args.tenant_id})
+    execution_response = None
+    if args.execute:
+        execution_response = _request_json(
+            base_url=args.base_url,
+            method="POST",
+            path=f"/api/v1/graphs/{graph_id}/execute?{tenant_query}",
+            timeout_seconds=args.timeout_seconds,
+        )
+
     saved_graph = _request_json(
         base_url=args.base_url,
         method="GET",
@@ -232,10 +246,11 @@ def main() -> int:
 
     plans_count = len(saved_graph.get("plans", []))
     tasks_count = len(saved_graph.get("tasks", []))
-    print(
-        f"Seeded graph id={graph_id} tenant={args.tenant_id} "
-        f"name={args.graph_name} plans={plans_count} tasks={tasks_count}"
-    )
+    print(f"Seeded graph id={graph_id} tenant={args.tenant_id} name={args.graph_name} plans={plans_count} tasks={tasks_count}")
+    if execution_response:
+        execution_id = execution_response.get("executionId", "")
+        status = execution_response.get("status", "")
+        print(f"Execution started lifetime_id={execution_id} status={status}")
     return 0
 
 

@@ -51,7 +51,15 @@ public class ControlPlaneProducer {
                 throw new RuntimeException("Failed to serialize TaskExecution");
             }
             
-            logger.debug("Publishing TaskExecution protobuf to topic {}: {}", topic, messageKey);
+            logger.info(
+                    "Data-plane publishing persisted task execution tenant={} graph={} lifetime={} node={} exec={} topic={} key={}",
+                    tenantId,
+                    header.getGraphId(),
+                    header.getLifetimeId(),
+                    header.getName(),
+                    header.getExecId(),
+                    topic,
+                    messageKey);
             
             ProducerRecord<String, byte[]> record = new ProducerRecord<>(topic, messageKey, message);
             return kafkaTemplate.send(record);
@@ -85,7 +93,15 @@ public class ControlPlaneProducer {
                 throw new RuntimeException("Failed to serialize PlanExecution");
             }
             
-            logger.debug("Publishing PlanExecution protobuf to topic {}: {}", topic, messageKey);
+            logger.info(
+                    "Data-plane publishing persisted plan execution tenant={} graph={} lifetime={} node={} exec={} topic={} key={}",
+                    tenantId,
+                    header.getGraphId(),
+                    header.getLifetimeId(),
+                    header.getName(),
+                    header.getExecId(),
+                    topic,
+                    messageKey);
             
             ProducerRecord<String, byte[]> record = new ProducerRecord<>(topic, messageKey, message);
             return kafkaTemplate.send(record);

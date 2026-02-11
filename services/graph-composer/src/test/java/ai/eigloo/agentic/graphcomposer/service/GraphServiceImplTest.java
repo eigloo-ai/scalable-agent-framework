@@ -6,6 +6,7 @@ import ai.eigloo.agentic.graphcomposer.dto.CreateGraphRequest;
 import ai.eigloo.agentic.graphcomposer.dto.ExecutionResponse;
 import ai.eigloo.agentic.graphcomposer.dto.GraphStatus;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
+import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
 import ai.eigloo.agentic.graph.repository.PlanRepository;
 import ai.eigloo.agentic.graph.repository.TaskRepository;
@@ -48,6 +49,9 @@ class GraphServiceImplTest {
 
     @Mock
     private ValidationService validationService;
+
+    @Mock
+    private GraphExecutionBootstrapPublisher graphExecutionBootstrapPublisher;
 
     @InjectMocks
     private GraphServiceImpl graphService;
@@ -327,9 +331,11 @@ class GraphServiceImplTest {
         String graphId = "test-graph-id";
         String tenantId = "test-tenant";
         ValidationResult validationResult = new ValidationResult(true, List.of(), List.of());
+        PlanEntity planA = new PlanEntity();
+        planA.setName("PlanA");
         
         when(agentGraphRepository.findByIdAndTenantId(graphId, tenantId)).thenReturn(Optional.of(testGraphEntity));
-        when(planRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
+        when(planRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of(planA));
         when(taskRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
         when(validationService.validateGraph(any(AgentGraphDto.class))).thenReturn(validationResult);
         when(agentGraphRepository.save(any(AgentGraphEntity.class))).thenReturn(testGraphEntity);
@@ -340,12 +346,14 @@ class GraphServiceImplTest {
         // Then
         assertNotNull(result);
         assertNotNull(result.getExecutionId());
-        assertEquals("SUBMITTED", result.getStatus());
-        assertEquals("Graph submitted for execution", result.getMessage());
+        assertEquals("RUNNING", result.getStatus());
+        assertTrue(result.getMessage().contains("entry plan"));
         
         verify(agentGraphRepository).findByIdAndTenantId(graphId, tenantId);
         verify(validationService).validateGraph(any(AgentGraphDto.class));
         verify(agentGraphRepository).save(any(AgentGraphEntity.class));
+        verify(graphExecutionBootstrapPublisher).publishStartPlanInput(
+                eq(tenantId), eq(graphId), anyString(), eq("PlanA"));
     }
 
     @Test
@@ -366,6 +374,23 @@ class GraphServiceImplTest {
         
         verify(agentGraphRepository).findByIdAndTenantId(graphId, tenantId);
         verify(validationService).validateGraph(any(AgentGraphDto.class));
+    }
+
+    @Test
+    void submitForExecution_ShouldThrowException_WhenNoEntryPlanExists() {
+        // Given
+        String graphId = "test-graph-id";
+        String tenantId = "test-tenant";
+        ValidationResult validationResult = new ValidationResult(true, List.of(), List.of());
+
+        when(agentGraphRepository.findByIdAndTenantId(graphId, tenantId)).thenReturn(Optional.of(testGraphEntity));
+        when(planRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
+        when(taskRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
+        when(validationService.validateGraph(any(AgentGraphDto.class))).thenReturn(validationResult);
+
+        // When + Then
+        assertThrows(GraphValidationException.class, () -> graphService.submitForExecution(graphId, tenantId));
+        verify(graphExecutionBootstrapPublisher, never()).publishStartPlanInput(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test

@@ -43,9 +43,19 @@ public class ExecutorOutputProducer {
                     planExecution.getHeader().getGraphId(),
                     planExecution.getHeader().getName());
 
-            logger.debug("Publishing PlanExecution to topic {} key {}", topic, key);
+            logger.info(
+                    "Executor publishing PlanExecution tenant={} graph={} lifetime={} plan={} exec={} status={} topic={} key={}",
+                    tenantId,
+                    planExecution.getHeader().getGraphId(),
+                    planExecution.getHeader().getLifetimeId(),
+                    planExecution.getHeader().getName(),
+                    planExecution.getHeader().getExecId(),
+                    planExecution.getHeader().getStatus(),
+                    topic,
+                    key);
             return kafkaTemplate.send(new ProducerRecord<>(topic, key, payload));
         } catch (Exception e) {
+            logger.error("Failed publishing PlanExecution for tenant {}: {}", tenantId, e.getMessage(), e);
             CompletableFuture<SendResult<String, byte[]>> failed = new CompletableFuture<>();
             failed.completeExceptionally(e);
             return failed;
@@ -71,9 +81,19 @@ public class ExecutorOutputProducer {
                     taskExecution.getHeader().getGraphId(),
                     taskExecution.getHeader().getName());
 
-            logger.debug("Publishing TaskExecution to topic {} key {}", topic, key);
+            logger.info(
+                    "Executor publishing TaskExecution tenant={} graph={} lifetime={} task={} exec={} status={} topic={} key={}",
+                    tenantId,
+                    taskExecution.getHeader().getGraphId(),
+                    taskExecution.getHeader().getLifetimeId(),
+                    taskExecution.getHeader().getName(),
+                    taskExecution.getHeader().getExecId(),
+                    taskExecution.getHeader().getStatus(),
+                    topic,
+                    key);
             return kafkaTemplate.send(new ProducerRecord<>(topic, key, payload));
         } catch (Exception e) {
+            logger.error("Failed publishing TaskExecution for tenant {}: {}", tenantId, e.getMessage(), e);
             CompletableFuture<SendResult<String, byte[]>> failed = new CompletableFuture<>();
             failed.completeExceptionally(e);
             return failed;

@@ -60,6 +60,16 @@ public class TaskInputListener {
                 return;
             }
 
+            logger.info(
+                    "Executor consumed TaskInput tenant={} graph={} lifetime={} task={} inputId={} topic={} key={}",
+                    tenantId,
+                    taskInput.getGraphId(),
+                    taskInput.getLifetimeId(),
+                    taskInput.getTaskName(),
+                    taskInput.getInputId(),
+                    topic,
+                    record.key());
+
             TaskExecution execution = orchestrationService.handleTaskInput(tenantId, taskInput);
             executorOutputProducer.publishTaskExecution(tenantId, execution).join();
             acknowledgment.acknowledge();

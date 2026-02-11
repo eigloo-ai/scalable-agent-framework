@@ -14,7 +14,7 @@ import java.util.Map;
  * for use in @KafkaListener annotations. The patterns support tenant-aware topic naming
  * with wildcards for dynamic subscription.
  */
-@Configuration
+@Configuration("kafkaTopicPatterns")
 @ConfigurationProperties(prefix = "kafka.topic-patterns")
 public class KafkaTopicPatterns {
     

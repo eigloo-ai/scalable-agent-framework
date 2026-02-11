@@ -57,7 +57,14 @@ public class PersistenceService {
     @Transactional
     public boolean processTaskExecution(TaskExecution taskExecution, String tenantId) {
         try {
-            logger.debug("Processing TaskExecution {}/{} for tenant {}", taskExecution.getHeader().getName(), taskExecution.getHeader().getExecId(), tenantId);
+            logger.info(
+                    "Persisting task execution tenant={} graph={} lifetime={} node={} exec={} status={}",
+                    tenantId,
+                    taskExecution.getHeader().getGraphId(),
+                    taskExecution.getHeader().getLifetimeId(),
+                    taskExecution.getHeader().getName(),
+                    taskExecution.getHeader().getExecId(),
+                    taskExecution.getHeader().getStatus());
             
             // Extract TaskResult and save it separately
             TaskResultEntity savedTaskResult = null;
@@ -75,7 +82,13 @@ public class PersistenceService {
             TaskExecutionEntity savedEntity = taskExecutionRepository.save(entity);
             logger.debug("Saved TaskExecution {}/{} to database", savedEntity.getName(), savedEntity.getExecId());
             
-            logger.info("Successfully processed TaskExecution {}/{} for tenant {}", taskExecution.getHeader().getName(), taskExecution.getHeader().getExecId(), tenantId);
+            logger.info(
+                    "Persisted task execution tenant={} graph={} lifetime={} node={} exec={}",
+                    tenantId,
+                    taskExecution.getHeader().getGraphId(),
+                    taskExecution.getHeader().getLifetimeId(),
+                    taskExecution.getHeader().getName(),
+                    taskExecution.getHeader().getExecId());
             return true;
             
         } catch (Exception e) {
@@ -96,7 +109,14 @@ public class PersistenceService {
     @Transactional
     public boolean processPlanExecution(PlanExecution planExecution, String tenantId) {
         try {
-            logger.debug("Processing PlanExecution {}/{} for tenant {}", planExecution.getHeader().getName(), planExecution.getHeader().getExecId(), tenantId);
+            logger.info(
+                    "Persisting plan execution tenant={} graph={} lifetime={} node={} exec={} status={}",
+                    tenantId,
+                    planExecution.getHeader().getGraphId(),
+                    planExecution.getHeader().getLifetimeId(),
+                    planExecution.getHeader().getName(),
+                    planExecution.getHeader().getExecId(),
+                    planExecution.getHeader().getStatus());
             
             // Convert protobuf to JPA entity
             PlanExecutionEntity entity = convertToPlanExecutionEntity(planExecution, tenantId);
@@ -105,7 +125,13 @@ public class PersistenceService {
             PlanExecutionEntity savedEntity = planExecutionRepository.save(entity);
             logger.debug("Saved PlanExecution {}/{} to database", savedEntity.getName(), savedEntity.getExecId());
             
-            logger.info("Successfully processed PlanExecution {}/{} for tenant {}", planExecution.getHeader().getName(), planExecution.getHeader().getExecId(), tenantId);
+            logger.info(
+                    "Persisted plan execution tenant={} graph={} lifetime={} node={} exec={}",
+                    tenantId,
+                    planExecution.getHeader().getGraphId(),
+                    planExecution.getHeader().getLifetimeId(),
+                    planExecution.getHeader().getName(),
+                    planExecution.getHeader().getExecId());
             return true;
             
         } catch (Exception e) {

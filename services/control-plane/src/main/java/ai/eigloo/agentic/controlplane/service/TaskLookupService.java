@@ -1,7 +1,6 @@
 package ai.eigloo.agentic.controlplane.service;
 
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
-import ai.eigloo.agentic.graph.entity.GraphStatus;
 import ai.eigloo.agentic.graph.entity.TaskEntity;
 import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
 import org.slf4j.Logger;
@@ -79,19 +78,12 @@ public class TaskLookupService {
     }
 
     private AgentGraphEntity resolveGraph(String tenantId, String graphId) {
-        if (graphId != null && !graphId.isBlank()) {
-            return agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "Graph '" + graphId + "' not found for tenant " + tenantId));
+        if (graphId == null || graphId.isBlank()) {
+            throw new IllegalArgumentException("graph_id is required for task/plan lookup");
         }
 
-        List<AgentGraphEntity> runningGraphs =
-                agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(tenantId, GraphStatus.RUNNING);
-        if (!runningGraphs.isEmpty()) {
-            logger.warn("Falling back to latest running graph for tenant {} because graph_id was missing", tenantId);
-            return runningGraphs.get(0);
-        }
-
-        throw new IllegalArgumentException("No running graph found for tenant " + tenantId);
+        return agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Graph '" + graphId + "' not found for tenant " + tenantId));
     }
 }

@@ -1,0 +1,62 @@
+# Sample Graph Docker Runbook
+
+This runbook loads the sample graph through `graph-composer`, starts execution, and traces execution across:
+
+- graph-composer
+- executor-java
+- data-plane
+- control-plane
+
+## 1) Start required services
+
+```bash
+docker compose up -d kafka postgres graph-composer executor-java data-plane control-plane
+```
+
+## 2) Load and execute the sample graph
+
+```bash
+./scripts/load_sample_graph.sh \
+  --base-url http://localhost:8088 \
+  --tenant-id tenant-dev \
+  --graph-name sample-graph-plan-a-plan-b \
+  --execute
+```
+
+Expected output includes:
+
+- `Seeded graph id=<graph-id> ...`
+- `Execution started lifetime_id=<lifetime-id> status=RUNNING`
+
+## 3) Follow end-to-end execution logs
+
+```bash
+docker compose logs -f graph-composer executor-java data-plane control-plane
+```
+
+Filter to one run:
+
+```bash
+docker compose logs -f graph-composer executor-java data-plane control-plane \
+  | rg "<lifetime-id>|<graph-id>"
+```
+
+## 4) Verify persisted execution records in PostgreSQL
+
+```bash
+docker compose exec -T postgres psql -U agentic -d agentic \
+  -c "select created_at, name, exec_id, graph_id, lifetime_id, status from plan_executions where tenant_id='tenant-dev' and lifetime_id='<lifetime-id>' order by created_at;"
+```
+
+```bash
+docker compose exec -T postgres psql -U agentic -d agentic \
+  -c "select created_at, name, exec_id, parent_plan_name, graph_id, lifetime_id, status from task_executions where tenant_id='tenant-dev' and lifetime_id='<lifetime-id>' order by created_at;"
+```
+
+## 5) Graph status semantics
+
+- `NEW`: graph exists but has not been activated for execution.
+- `ACTIVE`: graph is loaded and ready to run.
+- `RUNNING`: graph execution has been started and is in-flight.
+- `STOPPED`: graph execution was stopped.
+- `ERROR`: graph failed to start or encountered a runtime error state.

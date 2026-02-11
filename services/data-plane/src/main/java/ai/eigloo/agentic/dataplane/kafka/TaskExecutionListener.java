@@ -3,6 +3,7 @@ package ai.eigloo.agentic.dataplane.kafka;
 import ai.eigloo.agentic.common.ProtobufUtils;
 import ai.eigloo.agentic.common.TopicNames;
 import ai.eigloo.agentic.dataplane.service.PersistenceService;
+import ai.eigloo.proto.model.Common.ExecutionHeader;
 import ai.eigloo.proto.model.Common.TaskExecution;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -76,13 +77,18 @@ public class TaskExecutionListener {
                 acknowledgment.acknowledge();
                 return;
             }
+
+            logger.info(
+                    "Data-plane consumed task execution {}",
+                    executionContext(taskExecution.hasHeader() ? taskExecution.getHeader() : null, tenantId, topic, record.key()));
             
             // Process the task execution and persist to database
             boolean success = persistenceService.processTaskExecution(taskExecution, tenantId);
             
             if (success) {
-                logger.debug("Successfully processed TaskExecution {}/{} for tenant {}", 
-                    taskExecution.getHeader().getName(), taskExecution.getHeader().getExecId(), tenantId);
+                logger.info(
+                        "Data-plane persisted and forwarding task execution {}",
+                        executionContext(taskExecution.hasHeader() ? taskExecution.getHeader() : null, tenantId, topic, record.key()));
                 
                 // Publish TaskExecution protobuf message to control plane
                 controlPlaneProducer.publishTaskExecution(tenantId, taskExecution);
@@ -99,5 +105,21 @@ public class TaskExecutionListener {
             logger.error("Error processing TaskExecution message from topic {}: {}", topic, e.getMessage(), e);
             // Don't acknowledge on error to allow retry
         }
+    }
+
+    private static String executionContext(ExecutionHeader header, String tenantId, String topic, String key) {
+        if (header == null) {
+            return String.format("tenant=%s topic=%s key=%s", tenantId, topic, key);
+        }
+        return String.format(
+                "tenant=%s graph=%s lifetime=%s node=%s exec=%s status=%s topic=%s key=%s",
+                tenantId,
+                header.getGraphId(),
+                header.getLifetimeId(),
+                header.getName(),
+                header.getExecId(),
+                header.getStatus(),
+                topic,
+                key);
     }
 } 

@@ -15,6 +15,14 @@ import java.util.Map;
 public class TopicNames {
     
     private static final Logger logger = LoggerFactory.getLogger(TopicNames.class);
+    private static final String[] TOPIC_PREFIXES = {
+        "task-executions-",
+        "plan-executions-",
+        "persisted-task-executions-",
+        "persisted-plan-executions-",
+        "plan-inputs-",
+        "task-inputs-"
+    };
     
     private TopicNames() {
         // Utility class - prevent instantiation
@@ -111,14 +119,19 @@ public class TopicNames {
             logger.warn("Cannot extract tenant ID from null or empty topic name");
             return null;
         }
-        
-        // Split on hyphen and take the last part as tenant ID
-        String[] parts = topicName.split("-");
-        if (parts.length >= 3) {
-            return parts[parts.length - 1];
+
+        for (String prefix : TOPIC_PREFIXES) {
+            if (topicName.startsWith(prefix)) {
+                String tenantId = topicName.substring(prefix.length());
+                if (!tenantId.isEmpty()) {
+                    return tenantId;
+                }
+                logger.warn("Topic name '{}' has empty tenant suffix", topicName);
+                return null;
+            }
         }
-        
-        logger.warn("Topic name '{}' does not contain valid tenant ID separator", topicName);
+
+        logger.warn("Topic name '{}' does not contain a recognized tenant topic prefix", topicName);
         return null;
     }
     
@@ -214,21 +227,13 @@ public class TopicNames {
         if (topicName == null || topicName.isEmpty()) {
             return false;
         }
-        
-        // Check for all topic patterns with hyphen separator
-        if (topicName.contains("-")) {
-            String[] parts = topicName.split("-");
-            if (parts.length >= 3) {
-                String prefix = parts[0] + "-" + parts[1];
-                return prefix.equals("task-executions") || 
-                       prefix.equals("plan-executions") || 
-                       prefix.equals("persisted-task-executions") || 
-                       prefix.equals("persisted-plan-executions") ||
-                       prefix.equals("plan-inputs") ||
-                       prefix.equals("task-inputs");
+
+        for (String prefix : TOPIC_PREFIXES) {
+            if (topicName.startsWith(prefix)) {
+                return topicName.length() > prefix.length();
             }
         }
-        
+
         return false;
     }
-} 
+}

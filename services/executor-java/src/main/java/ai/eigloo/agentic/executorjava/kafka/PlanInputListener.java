@@ -60,6 +60,16 @@ public class PlanInputListener {
                 return;
             }
 
+            logger.info(
+                    "Executor consumed PlanInput tenant={} graph={} lifetime={} plan={} inputId={} topic={} key={}",
+                    tenantId,
+                    planInput.getGraphId(),
+                    planInput.getLifetimeId(),
+                    planInput.getPlanName(),
+                    planInput.getInputId(),
+                    topic,
+                    record.key());
+
             PlanExecution execution = orchestrationService.handlePlanInput(tenantId, planInput);
             executorOutputProducer.publishPlanExecution(tenantId, execution).join();
             acknowledgment.acknowledge();
