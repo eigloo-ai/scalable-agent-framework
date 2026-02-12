@@ -3,28 +3,25 @@ package ai.eigloo.agentic.executorjava.service;
 import ai.eigloo.agentic.executorjava.model.ExecutorFilePayload;
 import ai.eigloo.agentic.executorjava.model.NodeType;
 import ai.eigloo.agentic.executorjava.model.ResolvedExecutorNode;
-import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
-import ai.eigloo.agentic.graph.entity.ExecutorFileEntity;
-import ai.eigloo.agentic.graph.entity.PlanEntity;
-import ai.eigloo.agentic.graph.entity.TaskEntity;
-import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
+import ai.eigloo.agentic.graph.api.GraphLookupFile;
+import ai.eigloo.agentic.graph.api.GraphLookupPlan;
+import ai.eigloo.agentic.graph.api.GraphLookupResponse;
+import ai.eigloo.agentic.graph.api.GraphLookupTask;
 import ai.eigloo.proto.model.Common.PlanInput;
 import ai.eigloo.proto.model.Common.TaskInput;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 @Service
-@Transactional(readOnly = true)
 public class ExecutionSourceResolver {
 
-    private final AgentGraphRepository agentGraphRepository;
+    private final DataPlaneGraphClient dataPlaneGraphClient;
 
-    public ExecutionSourceResolver(AgentGraphRepository agentGraphRepository) {
-        this.agentGraphRepository = agentGraphRepository;
+    public ExecutionSourceResolver(DataPlaneGraphClient dataPlaneGraphClient) {
+        this.dataPlaneGraphClient = dataPlaneGraphClient;
     }
 
     public ResolvedExecutorNode resolvePlanNode(String tenantId, PlanInput planInput) {
@@ -35,9 +32,9 @@ public class ExecutionSourceResolver {
 
         String graphId = requireNonBlank(planInput.getGraphId(), "PlanInput.graph_id");
         String lifetimeId = requireNonBlank(planInput.getLifetimeId(), "PlanInput.lifetime_id");
-        AgentGraphEntity graph = resolveGraph(tenantId, graphId);
+        GraphLookupResponse graph = resolveGraph(tenantId, graphId);
 
-        PlanEntity plan = graph.getPlans().stream()
+        GraphLookupPlan plan = graph.getPlans().stream()
                 .filter(p -> planName.equals(p.getName()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -64,9 +61,9 @@ public class ExecutionSourceResolver {
 
         String graphId = requireNonBlank(taskInput.getGraphId(), "TaskInput.graph_id");
         String lifetimeId = requireNonBlank(taskInput.getLifetimeId(), "TaskInput.lifetime_id");
-        AgentGraphEntity graph = resolveGraph(tenantId, graphId);
+        GraphLookupResponse graph = resolveGraph(tenantId, graphId);
 
-        TaskEntity task = graph.getTasks().stream()
+        GraphLookupTask task = graph.getTasks().stream()
                 .filter(t -> taskName.equals(t.getName()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -85,8 +82,8 @@ public class ExecutionSourceResolver {
         );
     }
 
-    private AgentGraphEntity resolveGraph(String tenantId, String graphId) {
-        return agentGraphRepository.findByIdAndTenantIdWithAllRelations(graphId, tenantId)
+    private GraphLookupResponse resolveGraph(String tenantId, String graphId) {
+        return dataPlaneGraphClient.getGraph(tenantId, graphId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Graph '" + graphId + "' not found for tenant " + tenantId));
     }
@@ -98,14 +95,14 @@ public class ExecutionSourceResolver {
         return value;
     }
 
-    private List<ExecutorFilePayload> toPayloadFiles(List<ExecutorFileEntity> files) {
+    private List<ExecutorFilePayload> toPayloadFiles(List<GraphLookupFile> files) {
         List<ExecutorFilePayload> payloads = new ArrayList<>();
         if (files == null) {
             return payloads;
         }
         files.stream()
                 .filter(file -> file.getName() != null && !file.getName().isBlank())
-                .sorted(Comparator.comparing(ExecutorFileEntity::getName))
+                .sorted(Comparator.comparing(GraphLookupFile::getName))
                 .forEach(file -> payloads.add(new ExecutorFilePayload(file.getName(), file.getContents())));
         return payloads;
     }

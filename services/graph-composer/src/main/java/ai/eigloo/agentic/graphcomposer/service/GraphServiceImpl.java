@@ -203,27 +203,15 @@ public class GraphServiceImpl implements GraphService {
             agentGraphRepository.save(graph);
         }
 
-        GraphRunEntity graphRun = new GraphRunEntity();
-        graphRun.setLifetimeId(lifetimeId);
-        graphRun.setTenantId(tenantId);
-        graphRun.setGraphId(graphId);
-        graphRun.setStatus(GraphRunStatus.QUEUED);
-        graphRun.setEntryPlanNames(String.join(",", entryPlanNames));
-        graphRun.setCreatedAt(Instant.now());
-        graphRunRepository.save(graphRun);
-
+        GraphRunEntity graphRun = createQueuedGraphRun(tenantId, graphId, lifetimeId, entryPlanNames);
         try {
             for (String planName : entryPlanNames) {
                 graphExecutionBootstrapPublisher.publishStartPlanInput(tenantId, graphId, lifetimeId, planName);
             }
-
-            graphRun.setStatus(GraphRunStatus.RUNNING);
-            graphRun.setStartedAt(Instant.now());
-            graphRunRepository.save(graphRun);
         } catch (Exception e) {
             graphRun.setStatus(GraphRunStatus.FAILED);
             graphRun.setCompletedAt(Instant.now());
-            graphRun.setErrorMessage(compactErrorMessage(e));
+            graphRun.setErrorMessage(compactError(e.getMessage()));
             graphRunRepository.save(graphRun);
             throw new IllegalStateException("Failed to enqueue graph execution bootstrap messages", e);
         }
@@ -239,12 +227,29 @@ public class GraphServiceImpl implements GraphService {
         return response;
     }
 
-    private static String compactErrorMessage(Throwable throwable) {
-        String message = throwable.getMessage();
+    private GraphRunEntity createQueuedGraphRun(
+            String tenantId,
+            String graphId,
+            String lifetimeId,
+            List<String> entryPlanNames) {
+        GraphRunEntity graphRun = new GraphRunEntity();
+        graphRun.setLifetimeId(lifetimeId);
+        graphRun.setTenantId(tenantId);
+        graphRun.setGraphId(graphId);
+        graphRun.setStatus(GraphRunStatus.QUEUED);
+        graphRun.setEntryPlanNames(String.join(",", entryPlanNames));
+        graphRun.setErrorMessage(null);
+        graphRun.setCreatedAt(Instant.now());
+        graphRun.setStartedAt(null);
+        graphRun.setCompletedAt(null);
+        return graphRunRepository.save(graphRun);
+    }
+
+    private static String compactError(String message) {
         if (message == null || message.isBlank()) {
-            message = throwable.getClass().getSimpleName();
+            return "Execution bootstrap failed";
         }
-        return message.length() > 1000 ? message.substring(0, 1000) : message;
+        return message.length() <= 1000 ? message : message.substring(0, 1000);
     }
 
     @Override

@@ -2,6 +2,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const apiProxyTarget = process.env.VITE_API_BASE_URL || 'http://localhost:8088'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -13,7 +15,9 @@ export default defineConfig({
     host: '0.0.0.0', // Allow external connections in Docker
     proxy: {
       '/api': {
-        target: 'http://localhost:8088', // Use external port for local development
+        // Docker dev server should route to graph-composer service DNS name.
+        // Local host dev (outside Docker) falls back to localhost:8088.
+        target: apiProxyTarget,
         changeOrigin: true,
       },
     },

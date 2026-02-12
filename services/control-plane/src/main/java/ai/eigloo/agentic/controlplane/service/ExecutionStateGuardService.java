@@ -1,13 +1,10 @@
 package ai.eigloo.agentic.controlplane.service;
 
-import ai.eigloo.agentic.graph.entity.GraphRunEntity;
-import ai.eigloo.agentic.graph.entity.GraphRunStatus;
-import ai.eigloo.agentic.graph.repository.GraphRunRepository;
+import ai.eigloo.agentic.graph.api.GraphRunStateResponse;
 import ai.eigloo.proto.model.Common.ExecutionHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -15,15 +12,14 @@ import java.util.Optional;
  * Enforces runtime execution state checks before control-plane routing.
  */
 @Service
-@Transactional(readOnly = true)
 public class ExecutionStateGuardService {
 
     private static final Logger logger = LoggerFactory.getLogger(ExecutionStateGuardService.class);
 
-    private final GraphRunRepository graphRunRepository;
+    private final DataPlaneGraphClient dataPlaneGraphClient;
 
-    public ExecutionStateGuardService(GraphRunRepository graphRunRepository) {
-        this.graphRunRepository = graphRunRepository;
+    public ExecutionStateGuardService(DataPlaneGraphClient dataPlaneGraphClient) {
+        this.dataPlaneGraphClient = dataPlaneGraphClient;
     }
 
     /**
@@ -35,9 +31,10 @@ public class ExecutionStateGuardService {
             return false;
         }
 
-        Optional<GraphRunEntity> runOptional = graphRunRepository.findByLifetimeIdAndTenantId(
-                header.getLifetimeId(),
-                tenantId);
+        Optional<GraphRunStateResponse> runOptional = dataPlaneGraphClient.getRunState(
+                tenantId,
+                header.getGraphId(),
+                header.getLifetimeId());
         if (runOptional.isEmpty()) {
             logger.warn(
                     "Rejecting route: graph run not found tenant={} graph={} lifetime={} exec={}",
@@ -45,7 +42,7 @@ public class ExecutionStateGuardService {
             return false;
         }
 
-        GraphRunEntity run = runOptional.get();
+        GraphRunStateResponse run = runOptional.get();
         if (!header.getGraphId().equals(run.getGraphId())) {
             logger.warn(
                     "Rejecting route: graph_id mismatch tenant={} headerGraph={} runGraph={} lifetime={} exec={}",
@@ -53,8 +50,8 @@ public class ExecutionStateGuardService {
             return false;
         }
 
-        GraphRunStatus runStatus = run.getStatus();
-        if (runStatus != GraphRunStatus.RUNNING) {
+        String runStatus = run.getStatus();
+        if (!"RUNNING".equals(runStatus)) {
             logger.info(
                     "Rejecting route for non-running graph run tenant={} graph={} lifetime={} status={} exec={}",
                     tenantId, run.getGraphId(), run.getLifetimeId(), runStatus, header.getExecId());

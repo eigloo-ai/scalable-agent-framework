@@ -1,8 +1,6 @@
 package ai.eigloo.agentic.controlplane.service;
 
-import ai.eigloo.agentic.graph.entity.GraphRunEntity;
-import ai.eigloo.agentic.graph.entity.GraphRunStatus;
-import ai.eigloo.agentic.graph.repository.GraphRunRepository;
+import ai.eigloo.agentic.graph.api.GraphRunStateResponse;
 import ai.eigloo.proto.model.Common.ExecutionHeader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,13 +18,13 @@ import static org.mockito.Mockito.when;
 class ExecutionStateGuardServiceTest {
 
     @Mock
-    private GraphRunRepository graphRunRepository;
+    private DataPlaneGraphClient dataPlaneGraphClient;
 
     private ExecutionStateGuardService service;
 
     @BeforeEach
     void setUp() {
-        service = new ExecutionStateGuardService(graphRunRepository);
+        service = new ExecutionStateGuardService(dataPlaneGraphClient);
     }
 
     @Test
@@ -37,13 +35,8 @@ class ExecutionStateGuardServiceTest {
                 .setExecId("exec-a")
                 .build();
 
-        GraphRunEntity run = new GraphRunEntity();
-        run.setGraphId("graph-a");
-        run.setTenantId("tenant-a");
-        run.setLifetimeId("life-a");
-        run.setStatus(GraphRunStatus.RUNNING);
-
-        when(graphRunRepository.findByLifetimeIdAndTenantId("life-a", "tenant-a"))
+        GraphRunStateResponse run = new GraphRunStateResponse("tenant-a", "graph-a", "life-a", "RUNNING");
+        when(dataPlaneGraphClient.getRunState("tenant-a", "graph-a", "life-a"))
                 .thenReturn(Optional.of(run));
 
         assertTrue(service.canRoute("tenant-a", header));
@@ -57,17 +50,12 @@ class ExecutionStateGuardServiceTest {
                 .setExecId("exec-a")
                 .build();
 
-        GraphRunEntity terminalRun = new GraphRunEntity();
-        terminalRun.setGraphId("graph-a");
-        terminalRun.setTenantId("tenant-a");
-        terminalRun.setLifetimeId("life-a");
-        terminalRun.setStatus(GraphRunStatus.FAILED);
-
-        when(graphRunRepository.findByLifetimeIdAndTenantId("life-a", "tenant-a"))
+        GraphRunStateResponse terminalRun = new GraphRunStateResponse("tenant-a", "graph-a", "life-a", "FAILED");
+        when(dataPlaneGraphClient.getRunState("tenant-a", "graph-a", "life-a"))
                 .thenReturn(Optional.of(terminalRun));
         assertFalse(service.canRoute("tenant-a", header));
 
-        when(graphRunRepository.findByLifetimeIdAndTenantId("life-a", "tenant-a"))
+        when(dataPlaneGraphClient.getRunState("tenant-a", "graph-a", "life-a"))
                 .thenReturn(Optional.empty());
         assertFalse(service.canRoute("tenant-a", header));
     }
@@ -80,13 +68,8 @@ class ExecutionStateGuardServiceTest {
                 .setExecId("exec-a")
                 .build();
 
-        GraphRunEntity run = new GraphRunEntity();
-        run.setGraphId("graph-b");
-        run.setTenantId("tenant-a");
-        run.setLifetimeId("life-a");
-        run.setStatus(GraphRunStatus.RUNNING);
-
-        when(graphRunRepository.findByLifetimeIdAndTenantId("life-a", "tenant-a"))
+        GraphRunStateResponse run = new GraphRunStateResponse("tenant-a", "graph-b", "life-a", "RUNNING");
+        when(dataPlaneGraphClient.getRunState("tenant-a", "graph-a", "life-a"))
                 .thenReturn(Optional.of(run));
 
         assertFalse(service.canRoute("tenant-a", header));

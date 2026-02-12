@@ -20,7 +20,8 @@ export interface TaskDto {
   files: ExecutorFile[];
 }
 
-export type GraphStatus = 'NEW' | 'RUNNING' | 'STOPPED' | 'ERROR';
+export type GraphStatus = 'NEW' | 'ACTIVE' | 'ARCHIVED';
+export type GraphRunStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'UNKNOWN';
 
 export interface AgentGraphDto {
   id: string;
@@ -62,12 +63,53 @@ export interface NodeNameValidationRequest {
 }
 
 export interface ExecutionResponse {
-  success: boolean;
+  executionId: string;
+  status: string;
   message: string;
 }
 
 export interface GraphStatusUpdate {
   status: GraphStatus;
+}
+
+export interface GraphRunSummary {
+  tenantId: string;
+  graphId: string;
+  lifetimeId: string;
+  status: GraphRunStatus | string;
+  entryPlanNames: string[];
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export interface RunTimelineEvent {
+  eventType: 'PLAN_EXECUTION' | 'TASK_EXECUTION' | string;
+  nodeName: string;
+  executionId: string;
+  status: string;
+  createdAt: string | null;
+  persistedAt: string | null;
+  parentNodeName: string | null;
+  parentExecutionId: string | null;
+  nextTaskNames?: string[] | null;
+  errorMessage?: string | null;
+}
+
+export interface RunTimelineResponse {
+  tenantId: string;
+  graphId: string;
+  lifetimeId: string;
+  status: GraphRunStatus | string;
+  entryPlanNames: string[];
+  errorMessage: string | null;
+  createdAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  planExecutions: number;
+  taskExecutions: number;
+  events: RunTimelineEvent[];
 }
 
 // Re-export error types for convenience
