@@ -1,6 +1,8 @@
 package ai.eigloo.agentic.graphbuilder.parser;
 
 import ai.eigloo.agentic.graph.model.AgentGraph;
+import ai.eigloo.agentic.graph.model.GraphEdge;
+import ai.eigloo.agentic.graph.model.GraphNodeType;
 import ai.eigloo.agentic.graph.model.Plan;
 import ai.eigloo.agentic.graph.model.Task;
 import ai.eigloo.agentic.graph.exception.GraphParsingException;
@@ -16,9 +18,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -81,9 +83,7 @@ public class GraphVizDotParser implements GraphParser {
         // Identify plans and tasks
         Map<String, Plan> plans = new HashMap<>();
         Map<String, TaskMetadata> taskMetadata = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
-        Map<String, Set<String>> planToUpstreamTasks = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
         // Process each node to identify plans and collect task metadata
         for (MutableNode node : dotGraph.nodes()) {
@@ -92,8 +92,6 @@ public class GraphVizDotParser implements GraphParser {
             if (isPlanNode(nodeName, node)) {
                 Plan plan = createPlan(nodeName, node, specificationDirectory);
                 plans.put(plan.name(), plan);
-                planToTasks.put(plan.name(), new HashSet<>());
-                planToUpstreamTasks.put(plan.name(), new HashSet<>());
             } else if (isTaskNode(nodeName, node)) {
                 TaskMetadata metadata = createTaskMetadata(nodeName, node, specificationDirectory);
                 taskMetadata.put(metadata.name(), metadata);
@@ -119,14 +117,11 @@ public class GraphVizDotParser implements GraphParser {
                 if (plans.containsKey(sourceId) && taskMetadata.containsKey(targetId)) {
                     // Plan -> Task edge
                     logger.debug("Processing plan -> task edge: {} -> {}", sourceId, targetId);
-                    planToTasks.get(sourceId).add(targetId);
-                    taskToPlan.put(targetId, sourceId);
-                    logger.debug("Updated taskToPlan: {} -> {}", targetId, sourceId);
+                    edges.add(new GraphEdge(sourceId, GraphNodeType.PLAN, targetId, GraphNodeType.TASK));
                 } else if (taskMetadata.containsKey(sourceId) && plans.containsKey(targetId)) {
                     // Task -> Plan edge
                     logger.debug("Processing task -> plan edge: {} -> {}", sourceId, targetId);
-                    planToUpstreamTasks.get(targetId).add(sourceId);
-                    logger.debug("Updated planToUpstreamTasks: {} -> {}", targetId, sourceId);
+                    edges.add(new GraphEdge(sourceId, GraphNodeType.TASK, targetId, GraphNodeType.PLAN));
                 } else {
                     throw GraphValidationException.invalidGraph(
                         GraphValidationException.ViolationType.INVALID_STRUCTURE,
@@ -137,40 +132,16 @@ public class GraphVizDotParser implements GraphParser {
             }
         }
         
-        // Update plans with their upstream task IDs
-        Map<String, Plan> updatedPlans = new HashMap<>();
-        for (Map.Entry<String, Plan> entry : plans.entrySet()) {
-            String planName = entry.getKey();
-            Plan plan = entry.getValue();
-            Set<String> upstreamTaskIds = planToUpstreamTasks.get(planName);
-            
-            if (!upstreamTaskIds.isEmpty()) {
-                Plan updatedPlan = plan.withUpstreamTasks(upstreamTaskIds);
-                updatedPlans.put(planName, updatedPlan);
-                logger.debug("Updated plan: {} with upstream tasks: {}", planName, upstreamTaskIds);
-            } else {
-                updatedPlans.put(planName, plan);
-            }
-        }
-        
-        // Create Task objects with known upstream plan IDs
+        // Create Task objects
         Map<String, Task> tasks = new HashMap<>();
         for (TaskMetadata metadata : taskMetadata.values()) {
-            String upstreamPlan = taskToPlan.get(metadata.name());
-            if (upstreamPlan == null) {
-                throw GraphValidationException.invalidGraph(
-                    GraphValidationException.ViolationType.INVALID_STRUCTURE,
-                    metadata.name(),
-                    String.format("Task %s has no upstream plan", metadata.name()));
-            }
-            
-            Task task = new Task(metadata.name(), metadata.label(), metadata.taskSource(), upstreamPlan, java.util.List.of());
+            Task task = new Task(metadata.name(), metadata.label(), metadata.taskSource(), java.util.List.of());
             tasks.put(task.name(), task);
-            logger.debug("Created task: {} with upstream plan: {}", task.name(), upstreamPlan);
+            logger.debug("Created task: {}", task.name());
         }
         
         // Create the agent graph with the extracted name
-        AgentGraph agentGraph = AgentGraph.of(graphName, updatedPlans, tasks, planToTasks, taskToPlan);
+        AgentGraph agentGraph = AgentGraph.of(graphName, plans, tasks, edges);
         
         // Validate the graph structure
         GraphValidator.validate(agentGraph);
@@ -251,7 +222,7 @@ public class GraphVizDotParser implements GraphParser {
         // Construct the plan directory path
         Path planDir = specificationDirectory.resolve(PLANS_DIR).resolve(planName);
         
-        return new Plan(planName, label, planDir, new java.util.HashSet<>(), java.util.List.of());
+        return new Plan(planName, label, planDir, java.util.List.of());
     }
     
     private TaskMetadata createTaskMetadata(String taskName, MutableNode node, Path specificationDirectory) throws GraphValidationException {

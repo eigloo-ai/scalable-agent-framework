@@ -9,8 +9,6 @@ import java.util.List;
 public class GraphLookupTask {
 
     private String name;
-    private String upstreamPlanName;
-    private String downstreamPlanName;
     private List<GraphLookupFile> files = new ArrayList<>();
 
     public GraphLookupTask() {
@@ -18,12 +16,8 @@ public class GraphLookupTask {
 
     public GraphLookupTask(
             String name,
-            String upstreamPlanName,
-            String downstreamPlanName,
             List<GraphLookupFile> files) {
         this.name = name;
-        this.upstreamPlanName = upstreamPlanName;
-        this.downstreamPlanName = downstreamPlanName;
         this.files = files != null ? files : new ArrayList<>();
     }
 
@@ -33,22 +27,6 @@ public class GraphLookupTask {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public String getUpstreamPlanName() {
-        return upstreamPlanName;
-    }
-
-    public void setUpstreamPlanName(String upstreamPlanName) {
-        this.upstreamPlanName = upstreamPlanName;
-    }
-
-    public String getDownstreamPlanName() {
-        return downstreamPlanName;
-    }
-
-    public void setDownstreamPlanName(String downstreamPlanName) {
-        this.downstreamPlanName = downstreamPlanName;
     }
 
     public List<GraphLookupFile> getFiles() {

@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS agent_graphs (
     id          VARCHAR(36)  PRIMARY KEY,
     tenant_id   VARCHAR(100) NOT NULL,
     name        VARCHAR(255) NOT NULL,
+    status      VARCHAR(20)  NOT NULL DEFAULT 'NEW',
     created_at  TIMESTAMP    NOT NULL,
     updated_at  TIMESTAMP    NOT NULL
 );
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS agent_graphs (
 CREATE INDEX IF NOT EXISTS idx_agent_graph_tenant_id ON agent_graphs(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_agent_graph_name ON agent_graphs(name);
 CREATE INDEX IF NOT EXISTS idx_agent_graph_tenant_name ON agent_graphs(tenant_id, name);
+CREATE INDEX IF NOT EXISTS idx_agent_graph_status ON agent_graphs(status);
 
 -- plans
 CREATE TABLE IF NOT EXISTS plans (
@@ -94,35 +96,38 @@ CREATE TABLE IF NOT EXISTS tasks (
     label            VARCHAR(255),
     task_source      VARCHAR(500),
     graph_id         VARCHAR(36)  NOT NULL,
-    upstream_plan_id VARCHAR(36),
     CONSTRAINT fk_tasks_graph
         FOREIGN KEY (graph_id)
         REFERENCES agent_graphs(id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_tasks_upstream_plan
-        FOREIGN KEY (upstream_plan_id)
-        REFERENCES plans(id)
-        ON DELETE SET NULL
+        ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_task_graph_id ON tasks(graph_id);
 CREATE INDEX IF NOT EXISTS idx_task_name ON tasks(name);
 CREATE INDEX IF NOT EXISTS idx_task_graph_name ON tasks(graph_id, name);
-CREATE INDEX IF NOT EXISTS idx_task_upstream_plan ON tasks(upstream_plan_id);
 
--- Many-to-many join: plan_upstream_tasks
-CREATE TABLE IF NOT EXISTS plan_upstream_tasks (
-    plan_id VARCHAR(36) NOT NULL,
-    task_id VARCHAR(36) NOT NULL,
-    PRIMARY KEY (plan_id, task_id),
-    CONSTRAINT fk_put_plan
-        FOREIGN KEY (plan_id)
-        REFERENCES plans(id)
+-- canonical directed edges for graph topology
+CREATE TABLE IF NOT EXISTS graph_edges (
+    id             VARCHAR(36)  PRIMARY KEY,
+    graph_id       VARCHAR(36)  NOT NULL,
+    from_node_name VARCHAR(255) NOT NULL,
+    from_node_type VARCHAR(20)  NOT NULL,
+    to_node_name   VARCHAR(255) NOT NULL,
+    to_node_type   VARCHAR(20)  NOT NULL,
+    CONSTRAINT fk_graph_edges_graph
+        FOREIGN KEY (graph_id)
+        REFERENCES agent_graphs(id)
         ON DELETE CASCADE,
-    CONSTRAINT fk_put_task
-        FOREIGN KEY (task_id)
-        REFERENCES tasks(id)
-        ON DELETE CASCADE
+    CONSTRAINT chk_graph_edges_types
+        CHECK (
+            (from_node_type = 'PLAN' AND to_node_type = 'TASK')
+            OR
+            (from_node_type = 'TASK' AND to_node_type = 'PLAN')
+        )
 );
 
-
+CREATE INDEX IF NOT EXISTS idx_graph_edges_graph_id ON graph_edges(graph_id);
+CREATE INDEX IF NOT EXISTS idx_graph_edges_from ON graph_edges(graph_id, from_node_type, from_node_name);
+CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON graph_edges(graph_id, to_node_type, to_node_name);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_graph_edges_unique
+    ON graph_edges(graph_id, from_node_name, from_node_type, to_node_name, to_node_type);

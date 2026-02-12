@@ -9,6 +9,7 @@ import ai.eigloo.agentic.graph.api.GraphLookupTask;
 import ai.eigloo.agentic.graph.api.GraphRunStateResponse;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
 import ai.eigloo.agentic.graph.entity.ExecutorFileEntity;
+import ai.eigloo.agentic.graph.entity.GraphEdgeEntity;
 import ai.eigloo.agentic.graph.entity.GraphRunEntity;
 import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.entity.TaskEntity;
@@ -50,16 +51,16 @@ public class InternalGraphQueryService {
                 .map(this::toPlanLookup)
                 .collect(Collectors.toList());
 
+        List<GraphLookupEdge> edges = graph.getEdges().stream()
+                .map(this::toEdgeLookup)
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .toList();
+
         List<GraphLookupTask> tasks = graph.getTasks().stream()
                 .sorted(Comparator.comparing(TaskEntity::getName, Comparator.nullsLast(String::compareTo)))
                 .map(this::toTaskLookup)
                 .collect(Collectors.toList());
-
-        List<GraphLookupEdge> edges = graph.getTasks().stream()
-                .flatMap(task -> toTaskEdges(task).stream())
-                .collect(Collectors.toCollection(LinkedHashSet::new))
-                .stream()
-                .toList();
 
         return new GraphLookupResponse(
                 graph.getId(),
@@ -91,39 +92,22 @@ public class InternalGraphQueryService {
     }
 
     private GraphLookupTask toTaskLookup(TaskEntity task) {
-        String upstreamPlanName = task.getUpstreamPlan() != null ? task.getUpstreamPlan().getName() : null;
-        String downstreamPlanName = task.getDownstreamPlan() != null ? task.getDownstreamPlan().getName() : null;
-        return new GraphLookupTask(task.getName(), upstreamPlanName, downstreamPlanName, toFileLookup(task.getFiles()));
+        return new GraphLookupTask(task.getName(), toFileLookup(task.getFiles()));
     }
 
-    private List<GraphLookupEdge> toTaskEdges(TaskEntity task) {
-        List<GraphLookupEdge> edges = new java.util.ArrayList<>();
-        String taskName = task.getName();
-        if (taskName == null || taskName.isBlank()) {
-            return edges;
-        }
+    private GraphLookupEdge toEdgeLookup(GraphEdgeEntity edge) {
+        return new GraphLookupEdge(
+                edge.getFromNodeName(),
+                toLookupType(edge.getFromNodeType()),
+                edge.getToNodeName(),
+                toLookupType(edge.getToNodeType()));
+    }
 
-        if (task.getUpstreamPlan() != null
-                && task.getUpstreamPlan().getName() != null
-                && !task.getUpstreamPlan().getName().isBlank()) {
-            edges.add(new GraphLookupEdge(
-                    task.getUpstreamPlan().getName(),
-                    GraphLookupNodeType.PLAN,
-                    taskName,
-                    GraphLookupNodeType.TASK));
-        }
-
-        if (task.getDownstreamPlan() != null
-                && task.getDownstreamPlan().getName() != null
-                && !task.getDownstreamPlan().getName().isBlank()) {
-            edges.add(new GraphLookupEdge(
-                    taskName,
-                    GraphLookupNodeType.TASK,
-                    task.getDownstreamPlan().getName(),
-                    GraphLookupNodeType.PLAN));
-        }
-
-        return edges;
+    private static GraphLookupNodeType toLookupType(ai.eigloo.agentic.graph.model.GraphNodeType type) {
+        return switch (type) {
+            case PLAN -> GraphLookupNodeType.PLAN;
+            case TASK -> GraphLookupNodeType.TASK;
+        };
     }
 
     private List<GraphLookupFile> toFileLookup(List<ExecutorFileEntity> files) {

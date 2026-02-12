@@ -93,8 +93,7 @@ class PlanRepositoryTest {
                 "upstream-task",
                 "Upstream Task",
                 "/tasks/upstream-task",
-                null, // Will be set when added to graph
-                null  // No upstream plan for this task
+                null // Will be set when added to graph
         );
         
         // Create test graph with plans and tasks

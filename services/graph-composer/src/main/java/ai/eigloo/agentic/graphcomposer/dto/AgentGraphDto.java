@@ -7,8 +7,6 @@ import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Data Transfer Object for complete Agent Graph operations.
@@ -34,13 +32,9 @@ public class AgentGraphDto {
     private List<TaskDto> tasks;
 
     /**
-     * Canonical directed DAG edges. Legacy adjacency maps are derived from this when present.
+     * Canonical directed DAG edges.
      */
     private List<GraphEdgeDto> edges;
-    
-    private Map<String, Set<String>> planToTasks;
-    
-    private Map<String, String> taskToPlan;
     
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
@@ -51,16 +45,8 @@ public class AgentGraphDto {
     public AgentGraphDto() {
     }
 
-    public AgentGraphDto(String id, String name, String tenantId, GraphStatus status, 
-                        List<PlanDto> plans, List<TaskDto> tasks, 
-                        Map<String, Set<String>> planToTasks, Map<String, String> taskToPlan,
-                        LocalDateTime createdAt, LocalDateTime updatedAt) {
-        this(id, name, tenantId, status, plans, tasks, null, planToTasks, taskToPlan, createdAt, updatedAt);
-    }
-
     public AgentGraphDto(String id, String name, String tenantId, GraphStatus status,
                         List<PlanDto> plans, List<TaskDto> tasks, List<GraphEdgeDto> edges,
-                        Map<String, Set<String>> planToTasks, Map<String, String> taskToPlan,
                         LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.name = name;
@@ -69,8 +55,6 @@ public class AgentGraphDto {
         this.plans = plans;
         this.tasks = tasks;
         this.edges = edges;
-        this.planToTasks = planToTasks;
-        this.taskToPlan = taskToPlan;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -129,22 +113,6 @@ public class AgentGraphDto {
 
     public void setEdges(List<GraphEdgeDto> edges) {
         this.edges = edges;
-    }
-
-    public Map<String, Set<String>> getPlanToTasks() {
-        return planToTasks;
-    }
-
-    public void setPlanToTasks(Map<String, Set<String>> planToTasks) {
-        this.planToTasks = planToTasks;
-    }
-
-    public Map<String, String> getTaskToPlan() {
-        return taskToPlan;
-    }
-
-    public void setTaskToPlan(Map<String, String> taskToPlan) {
-        this.taskToPlan = taskToPlan;
     }
 
     public LocalDateTime getCreatedAt() {

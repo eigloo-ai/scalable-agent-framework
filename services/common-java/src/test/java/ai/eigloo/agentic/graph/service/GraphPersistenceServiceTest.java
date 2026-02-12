@@ -1,13 +1,17 @@
 package ai.eigloo.agentic.graph.service;
 
 import ai.eigloo.agentic.graph.model.AgentGraph;
+import ai.eigloo.agentic.graph.model.GraphEdge;
+import ai.eigloo.agentic.graph.model.GraphNodeType;
 import ai.eigloo.agentic.graph.model.Plan;
 import ai.eigloo.agentic.graph.model.Task;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
+import ai.eigloo.agentic.graph.entity.GraphEdgeEntity;
 import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.entity.TaskEntity;
 import ai.eigloo.agentic.graph.exception.GraphPersistenceException;
 import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
+import ai.eigloo.agentic.graph.repository.GraphEdgeRepository;
 import ai.eigloo.agentic.graph.repository.PlanRepository;
 import ai.eigloo.agentic.graph.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +41,9 @@ class GraphPersistenceServiceTest {
     
     @Mock
     private TaskRepository taskRepository;
+
+    @Mock
+    private GraphEdgeRepository graphEdgeRepository;
     
     private GraphPersistenceService graphPersistenceService;
     
@@ -44,7 +51,7 @@ class GraphPersistenceServiceTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         graphPersistenceService = new GraphPersistenceService(
-            agentGraphRepository, planRepository, taskRepository);
+            agentGraphRepository, graphEdgeRepository, planRepository, taskRepository);
     }
     
     @Test
@@ -53,15 +60,14 @@ class GraphPersistenceServiceTest {
         String tenantId = "test-tenant";
         
         // Create test graph
-        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), Set.of("task1"), java.util.List.of());
-        Task task = new Task("task1", "Task 1", Path.of("/tasks/task1"), "test_plan", java.util.List.of());
+        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), java.util.List.of());
+        Task task = new Task("task1", "Task 1", Path.of("/tasks/task1"), java.util.List.of());
         
         Map<String, Plan> plans = Map.of("test_plan", plan);
         Map<String, Task> tasks = Map.of("task1", task);
-        Map<String, Set<String>> planToTasks = Map.of("test_plan", Set.of("task1"));
-        Map<String, String> taskToPlan = Map.of("task1", "test_plan");
+        List<GraphEdge> edges = List.of(new GraphEdge("test_plan", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
         
-        AgentGraph graph = new AgentGraph("test_graph", plans, tasks, planToTasks, taskToPlan);
+        AgentGraph graph = new AgentGraph("test_graph", plans, tasks, edges);
         
         // Mock repository behavior
         when(agentGraphRepository.findByTenantIdAndName(tenantId, "test_graph"))
@@ -71,6 +77,8 @@ class GraphPersistenceServiceTest {
         when(planRepository.save(any(PlanEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
         when(taskRepository.save(any(TaskEntity.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        when(graphEdgeRepository.save(any(GraphEdgeEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
         
         // When
@@ -82,7 +90,8 @@ class GraphPersistenceServiceTest {
         // Verify repository interactions
         verify(agentGraphRepository).save(any(AgentGraphEntity.class));
         verify(planRepository, times(1)).save(any(PlanEntity.class)); // Once for creation
-        verify(taskRepository, times(2)).save(any(TaskEntity.class)); // Once for creation, once for relationship update
+        verify(taskRepository, times(1)).save(any(TaskEntity.class)); // Once for creation
+        verify(graphEdgeRepository, times(1)).save(any(GraphEdgeEntity.class));
         
         // Verify graph entity creation
         ArgumentCaptor<AgentGraphEntity> graphCaptor = ArgumentCaptor.forClass(AgentGraphEntity.class);
@@ -100,15 +109,14 @@ class GraphPersistenceServiceTest {
         String existingGraphId = "existing-graph-id";
         
         // Create test graph
-        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), Set.of(), java.util.List.of());
-        Task task = new Task("task1", "Task 1", Path.of("/tasks/task1"), "test_plan", java.util.List.of());
+        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), java.util.List.of());
+        Task task = new Task("task1", "Task 1", Path.of("/tasks/task1"), java.util.List.of());
         
         Map<String, Plan> plans = Map.of("test_plan", plan);
         Map<String, Task> tasks = Map.of("task1", task);
-        Map<String, Set<String>> planToTasks = Map.of("test_plan", Set.of("task1"));
-        Map<String, String> taskToPlan = Map.of("task1", "test_plan");
+        List<GraphEdge> edges = List.of(new GraphEdge("test_plan", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
         
-        AgentGraph graph = new AgentGraph("test_graph", plans, tasks, planToTasks, taskToPlan);
+        AgentGraph graph = new AgentGraph("test_graph", plans, tasks, edges);
         
         // Mock existing graph
         AgentGraphEntity existingGraph = new AgentGraphEntity(existingGraphId, tenantId, "test_graph");
@@ -120,6 +128,8 @@ class GraphPersistenceServiceTest {
             .thenAnswer(invocation -> invocation.getArgument(0));
         when(taskRepository.save(any(TaskEntity.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
+        when(graphEdgeRepository.save(any(GraphEdgeEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
         
         // When
         String graphId = graphPersistenceService.persistGraph(graph, tenantId);
@@ -128,6 +138,7 @@ class GraphPersistenceServiceTest {
         assertThat(graphId).isNotNull();
         
         // Verify deletion of existing graph data
+        verify(graphEdgeRepository).deleteByAgentGraphId(existingGraphId);
         verify(taskRepository).deleteByAgentGraphId(existingGraphId);
         verify(planRepository).deleteByAgentGraphId(existingGraphId);
         verify(agentGraphRepository).deleteById(existingGraphId);
@@ -150,9 +161,9 @@ class GraphPersistenceServiceTest {
     @Test
     void persistGraph_NullTenantId_ShouldThrowException() {
         // Given
-        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), Set.of(), java.util.List.of());
+        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), java.util.List.of());
         Map<String, Plan> plans = Map.of("test_plan", plan);
-        AgentGraph graph = new AgentGraph("test_graph", plans, Map.of(), Map.of(), Map.of());
+        AgentGraph graph = new AgentGraph("test_graph", plans, Map.of(), List.of());
         
         // When & Then
         assertThatThrownBy(() -> graphPersistenceService.persistGraph(graph, null))
@@ -163,9 +174,9 @@ class GraphPersistenceServiceTest {
     @Test
     void persistGraph_EmptyTenantId_ShouldThrowException() {
         // Given
-        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), Set.of(), java.util.List.of());
+        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), java.util.List.of());
         Map<String, Plan> plans = Map.of("test_plan", plan);
-        AgentGraph graph = new AgentGraph("test_graph", plans, Map.of(), Map.of(), Map.of());
+        AgentGraph graph = new AgentGraph("test_graph", plans, Map.of(), List.of());
         
         // When & Then
         assertThatThrownBy(() -> graphPersistenceService.persistGraph(graph, ""))
@@ -178,9 +189,9 @@ class GraphPersistenceServiceTest {
         // Given
         String tenantId = "test-tenant";
         
-        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), Set.of(), java.util.List.of());
+        Plan plan = new Plan("test_plan", "Test Plan", Path.of("/plans/test_plan"), java.util.List.of());
         Map<String, Plan> plans = Map.of("test_plan", plan);
-        AgentGraph graph = new AgentGraph("test_graph", plans, Map.of(), Map.of(), Map.of());
+        AgentGraph graph = new AgentGraph("test_graph", plans, Map.of(), List.of());
         
         // Mock repository to throw exception
         when(agentGraphRepository.findByTenantIdAndName(tenantId, "test_graph"))
@@ -204,12 +215,19 @@ class GraphPersistenceServiceTest {
         AgentGraphEntity graphEntity = new AgentGraphEntity(graphId, tenantId, "test_graph");
         
         PlanEntity planEntity = new PlanEntity("plan-id", "test_plan", "Test Plan", "/plans/test_plan", graphEntity);
-        TaskEntity taskEntity = new TaskEntity("task-id", "task1", "Task 1", "/tasks/task1", graphEntity, planEntity);
-        // Relationship is set via TaskEntity constructor (upstreamPlan parameter)
+        TaskEntity taskEntity = new TaskEntity("task-id", "task1", "Task 1", "/tasks/task1", graphEntity);
+        GraphEdgeEntity edgeEntity = new GraphEdgeEntity(
+                "edge-id",
+                graphEntity,
+                "test_plan",
+                GraphNodeType.PLAN,
+                "task1",
+                GraphNodeType.TASK);
         
         when(agentGraphRepository.findById(graphId)).thenReturn(Optional.of(graphEntity));
         when(planRepository.findByAgentGraphId(graphId)).thenReturn(List.of(planEntity));
         when(taskRepository.findByAgentGraphId(graphId)).thenReturn(List.of(taskEntity));
+        when(graphEdgeRepository.findByAgentGraphId(graphId)).thenReturn(List.of(edgeEntity));
         
         // When
         AgentGraph result = graphPersistenceService.getPersistedGraph(graphId);

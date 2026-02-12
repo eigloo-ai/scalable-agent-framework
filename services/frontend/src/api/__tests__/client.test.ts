@@ -45,8 +45,7 @@ describe('API Client', () => {
           tenantId: 'test-tenant',
           plans: [],
           tasks: [],
-          planToTasks: {},
-          taskToPlan: {}
+          edges: []
         };
 
         mockedAxios.get.mockResolvedValue({ data: mockGraph });
@@ -73,8 +72,7 @@ describe('API Client', () => {
           tenantId: 'test-tenant',
           plans: [],
           tasks: [],
-          planToTasks: {},
-          taskToPlan: {}
+          edges: []
         };
 
         mockedAxios.post.mockResolvedValue({ data: mockResponse });
@@ -94,8 +92,7 @@ describe('API Client', () => {
           tenantId: 'test-tenant',
           plans: [],
           tasks: [],
-          planToTasks: {},
-          taskToPlan: {}
+          edges: []
         };
 
         mockedAxios.put.mockResolvedValue({ data: mockGraph });
@@ -269,8 +266,7 @@ describe('API Client', () => {
           tenantId: 'test-tenant',
           plans: [],
           tasks: [],
-          planToTasks: {},
-          taskToPlan: {}
+          edges: []
         };
 
         const mockValidationResult = {

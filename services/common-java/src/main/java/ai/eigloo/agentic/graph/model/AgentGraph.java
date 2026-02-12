@@ -1,48 +1,27 @@
 package ai.eigloo.agentic.graph.model;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * Represents a complete agent graph specification.
- * 
- * <p>An agent graph defines the structure and relationships between plans and tasks
- * in the scalable agent framework. The graph consists of:</p>
- * <ul>
- *   <li>Name: The name of the graph (extracted from DOT file)</li>
- *   <li>Plans: Nodes that process task results and produce plan results</li>
- *   <li>Tasks: Nodes that process plan results and produce task results</li>
- *   <li>Relationships: Directed edges defining data flow between nodes</li>
- * </ul>
- * 
- * <p>The graph enforces the constraint that tasks can only have one upstream plan,
- * while plans can have multiple upstream tasks and multiple downstream tasks.</p>
- * 
- * @param name The name of the graph (extracted from DOT file)
- * @param plans Map of plan names to Plan objects
- * @param tasks Map of task names to Task objects
- * @param planToTasks Map of plan names to sets of downstream task names
- * @param taskToPlan Map of task names to upstream plan names
+ *
+ * @param tenantId tenant identifier
+ * @param name graph name
+ * @param plans graph plans by name
+ * @param tasks graph tasks by name
+ * @param edges canonical directed edges
  */
 public record AgentGraph(
-    String tenantId,
-    String name,
-    Map<String, Plan> plans,
-    Map<String, Task> tasks,
-    Map<String, Set<String>> planToTasks,
-    Map<String, String> taskToPlan
+        String tenantId,
+        String name,
+        Map<String, Plan> plans,
+        Map<String, Task> tasks,
+        List<GraphEdge> edges
 ) {
-    
-    /**
-     * Compact constructor with validation and defensive copying.
-     * 
-     * @param name The graph name
-     * @param plans The plans map
-     * @param tasks The tasks map
-     * @param planToTasks The plan-to-tasks mapping
-     * @param taskToPlan The task-to-plan mapping
-     * @throws IllegalArgumentException if validation fails
-     */
+
     public AgentGraph {
         if (name == null) {
             throw new IllegalArgumentException("Graph name cannot be null");
@@ -53,185 +32,141 @@ public record AgentGraph(
         if (tasks == null) {
             throw new IllegalArgumentException("Tasks map cannot be null");
         }
-        if (planToTasks == null) {
-            throw new IllegalArgumentException("Plan-to-tasks mapping cannot be null");
+        if (edges == null) {
+            throw new IllegalArgumentException("Edges cannot be null");
         }
-        if (taskToPlan == null) {
-            throw new IllegalArgumentException("Task-to-plan mapping cannot be null");
-        }
-        
-        // Create defensive copies for immutability
+
         plans = Map.copyOf(plans);
         tasks = Map.copyOf(tasks);
-        planToTasks = Map.copyOf(planToTasks);
-        taskToPlan = Map.copyOf(taskToPlan);
+        edges = List.copyOf(edges);
     }
 
     /**
-     * Backward-compatible constructor without tenantId. Delegates to canonical constructor
-     * with {@code tenantId} set to {@code null}.
+     * Backward-compatible constructor without tenantId.
      */
     public AgentGraph(
-        String name,
-        Map<String, Plan> plans,
-        Map<String, Task> tasks,
-        Map<String, Set<String>> planToTasks,
-        Map<String, String> taskToPlan
+            String name,
+            Map<String, Plan> plans,
+            Map<String, Task> tasks,
+            List<GraphEdge> edges
     ) {
-        this(null, name, plans, tasks, planToTasks, taskToPlan);
-    }
-    
-    /**
-     * Creates a new AgentGraph with the specified components.
-     * 
-     * @param name The graph name
-     * @param plans The plans map
-     * @param tasks The tasks map
-     * @param planToTasks The plan-to-tasks mapping
-     * @param taskToPlan The task-to-plan mapping
-     * @return A new AgentGraph
-     */
-    public static AgentGraph of(
-        String name,
-        Map<String, Plan> plans,
-        Map<String, Task> tasks,
-        Map<String, Set<String>> planToTasks,
-        Map<String, String> taskToPlan
-    ) {
-        return new AgentGraph(name, plans, tasks, planToTasks, taskToPlan);
+        this(null, name, plans, tasks, edges);
     }
 
-    /**
-     * Creates a new AgentGraph including tenantId.
-     */
     public static AgentGraph of(
-        String tenantId,
-        String name,
-        Map<String, Plan> plans,
-        Map<String, Task> tasks,
-        Map<String, Set<String>> planToTasks,
-        Map<String, String> taskToPlan
+            String name,
+            Map<String, Plan> plans,
+            Map<String, Task> tasks,
+            List<GraphEdge> edges
     ) {
-        return new AgentGraph(tenantId, name, plans, tasks, planToTasks, taskToPlan);
+        return new AgentGraph(name, plans, tasks, edges);
     }
-    
-    /**
-     * Creates an empty AgentGraph with the specified name.
-     * 
-     * @param name The graph name
-     * @return An empty AgentGraph
-     */
+
+    public static AgentGraph of(
+            String tenantId,
+            String name,
+            Map<String, Plan> plans,
+            Map<String, Task> tasks,
+            List<GraphEdge> edges
+    ) {
+        return new AgentGraph(tenantId, name, plans, tasks, edges);
+    }
+
     public static AgentGraph empty(String name) {
-        return new AgentGraph(name, Map.of(), Map.of(), Map.of(), Map.of());
+        return new AgentGraph(name, Map.of(), Map.of(), List.of());
     }
 
-    /**
-     * Creates an empty AgentGraph with the specified tenantId and name.
-     */
     public static AgentGraph empty(String tenantId, String name) {
-        return new AgentGraph(tenantId, name, Map.of(), Map.of(), Map.of(), Map.of());
+        return new AgentGraph(tenantId, name, Map.of(), Map.of(), List.of());
     }
-    
-    /**
-     * Creates an empty AgentGraph with a default name.
-     * 
-     * @return An empty AgentGraph with name "EmptyGraph"
-     */
+
     public static AgentGraph empty() {
         return empty("EmptyGraph");
     }
-    
-    /**
-     * Gets a plan by name.
-     * 
-     * @param name The plan name
-     * @return The Plan, or null if not found
-     */
-    public Plan getPlan(String name) {
-        return plans.get(name);
+
+    public Plan getPlan(String planName) {
+        return plans.get(planName);
     }
-    
-    /**
-     * Gets a task by name.
-     * 
-     * @param name The task name
-     * @return The Task, or null if not found
-     */
-    public Task getTask(String name) {
-        return tasks.get(name);
+
+    public Task getTask(String taskName) {
+        return tasks.get(taskName);
     }
-    
-    /**
-     * Gets the downstream tasks for a plan.
-     * 
-     * @param planName The plan name
-     * @return Set of downstream task names, or empty set if not found
-     */
+
     public Set<String> getDownstreamTasks(String planName) {
-        return planToTasks.getOrDefault(planName, Set.of());
+        LinkedHashSet<String> downstream = new LinkedHashSet<>();
+        for (GraphEdge edge : edges) {
+            if (edge.fromType() == GraphNodeType.PLAN
+                    && edge.toType() == GraphNodeType.TASK
+                    && edge.from().equals(planName)) {
+                downstream.add(edge.to());
+            }
+        }
+        return Set.copyOf(downstream);
     }
-    
-    /**
-     * Gets the upstream plan for a task.
-     * 
-     * @param taskName The task name
-     * @return The upstream plan name, or null if not found
-     */
+
     public String getUpstreamPlan(String taskName) {
-        return taskToPlan.get(taskName);
+        String upstreamPlan = null;
+        for (GraphEdge edge : edges) {
+            if (edge.fromType() == GraphNodeType.PLAN
+                    && edge.toType() == GraphNodeType.TASK
+                    && edge.to().equals(taskName)) {
+                if (upstreamPlan != null && !upstreamPlan.equals(edge.from())) {
+                    throw new IllegalStateException("Task '" + taskName + "' has multiple upstream plans");
+                }
+                upstreamPlan = edge.from();
+            }
+        }
+        return upstreamPlan;
     }
-    
-    /**
-     * Gets all plan names.
-     * 
-     * @return Set of all plan names
-     */
+
+    public Set<String> getUpstreamTasks(String planName) {
+        LinkedHashSet<String> upstreamTasks = new LinkedHashSet<>();
+        for (GraphEdge edge : edges) {
+            if (edge.fromType() == GraphNodeType.TASK
+                    && edge.toType() == GraphNodeType.PLAN
+                    && edge.to().equals(planName)) {
+                upstreamTasks.add(edge.from());
+            }
+        }
+        return Set.copyOf(upstreamTasks);
+    }
+
+    public String getDownstreamPlan(String taskName) {
+        String downstreamPlan = null;
+        for (GraphEdge edge : edges) {
+            if (edge.fromType() == GraphNodeType.TASK
+                    && edge.toType() == GraphNodeType.PLAN
+                    && edge.from().equals(taskName)) {
+                if (downstreamPlan != null && !downstreamPlan.equals(edge.to())) {
+                    throw new IllegalStateException("Task '" + taskName + "' has multiple downstream plans");
+                }
+                downstreamPlan = edge.to();
+            }
+        }
+        return downstreamPlan;
+    }
+
     public Set<String> getAllPlanNames() {
         return plans.keySet();
     }
-    
-    /**
-     * Gets all task names.
-     * 
-     * @return Set of all task names
-     */
+
     public Set<String> getAllTaskNames() {
         return tasks.keySet();
     }
-    
-    /**
-     * Checks if the graph is empty.
-     * 
-     * @return true if the graph has no plans or tasks
-     */
+
     public boolean isEmpty() {
         return plans.isEmpty() && tasks.isEmpty();
     }
-    
-    /**
-     * Gets the number of plans in the graph.
-     * 
-     * @return The number of plans
-     */
+
     public int planCount() {
         return plans.size();
     }
-    
-    /**
-     * Gets the number of tasks in the graph.
-     * 
-     * @return The number of tasks
-     */
+
     public int taskCount() {
         return tasks.size();
     }
-    
-    /**
-     * Gets the total number of nodes in the graph.
-     * 
-     * @return The total number of plans and tasks
-     */
+
     public int totalNodeCount() {
         return plans.size() + tasks.size();
     }
-} 
+}

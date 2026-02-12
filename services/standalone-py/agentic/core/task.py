@@ -46,19 +46,19 @@ class Task:
     """
     Represents a task in the agent graph specification.
     
-    A task is a node in the agent graph that processes results from a single upstream plan
-    and produces a task result that can be consumed by downstream plans. Each task has a unique
-    name and is associated with a Python subproject directory containing the task implementation.
+    A task is a node in the agent graph that processes plan results and produces
+    a task result that can be consumed by downstream plans. Each task has a unique
+    name and is associated with a Python subproject directory containing the task
+    implementation.
     
     The task's Python subproject should contain:
     - A task.py file with a execute(upstream_plan: PlanResult) -> TaskResult function
     - A requirements.txt file listing dependencies
     
-    Tasks can only have one upstream plan (enforcing the constraint that tasks process
-    single plan results), but can feed into multiple downstream plans.
+    Graph topology is represented by canonical edges outside this data object.
     """
     
-    def __init__(self, name: str, label: str, task_source: Path, upstream_plan_id: str):
+    def __init__(self, name: str, label: str, task_source: Path):
         """
         Initialize a Task.
         
@@ -66,7 +66,6 @@ class Task:
             name: The unique identifier for this task
             label: The human-readable label for this task
             task_source: Path to the Python subproject directory containing the task implementation
-            upstream_plan_id: ID of the single plan that feeds into this task
             
         Raises:
             ValueError: If validation fails
@@ -75,42 +74,37 @@ class Task:
             raise ValueError("Task name cannot be null or empty")
         if task_source is None:
             raise ValueError("Task source cannot be null")
-        if not upstream_plan_id or not upstream_plan_id.strip():
-            raise ValueError("Upstream plan ID cannot be null or empty")
             
         self.name = name
         self.label = label
         self.task_source = task_source
-        self.upstream_plan_id = upstream_plan_id
     
     @classmethod
-    def of(cls, name: str, task_source: Path, upstream_plan_id: str) -> "Task":
+    def of(cls, name: str, task_source: Path) -> "Task":
         """
-        Creates a new Task with the specified name, source directory, and upstream plan.
+        Creates a new Task with the specified name and source directory.
         
         Args:
             name: The task name
             task_source: The task source directory
-            upstream_plan_id: The upstream plan ID
             
         Returns:
             A new Task
         """
-        return cls(name, name, task_source, upstream_plan_id)
+        return cls(name, name, task_source)
     
     def __eq__(self, other):
         if not isinstance(other, Task):
             return False
         return (self.name == other.name and 
                 self.label == other.label and 
-                self.task_source == other.task_source and 
-                self.upstream_plan_id == other.upstream_plan_id)
+                self.task_source == other.task_source)
     
     def __hash__(self):
-        return hash((self.name, self.label, self.task_source, self.upstream_plan_id))
+        return hash((self.name, self.label, self.task_source))
     
     def __repr__(self):
-        return f"Task(name='{self.name}', label='{self.label}', task_source={self.task_source}, upstream_plan_id='{self.upstream_plan_id}')"
+        return f"Task(name='{self.name}', label='{self.label}', task_source={self.task_source})"
 
 
 class TaskResult:

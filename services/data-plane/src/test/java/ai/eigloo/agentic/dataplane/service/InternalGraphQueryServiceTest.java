@@ -4,6 +4,7 @@ import ai.eigloo.agentic.graph.api.GraphLookupEdge;
 import ai.eigloo.agentic.graph.api.GraphLookupNodeType;
 import ai.eigloo.agentic.graph.api.GraphLookupResponse;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
+import ai.eigloo.agentic.graph.entity.GraphEdgeEntity;
 import ai.eigloo.agentic.graph.entity.GraphStatus;
 import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.entity.TaskEntity;
@@ -60,16 +61,36 @@ class InternalGraphQueryServiceTest {
         TaskEntity task1A = new TaskEntity();
         task1A.setName("Task1A");
         task1A.setAgentGraph(graph);
-        task1A.setUpstreamPlan(planA);
-        task1A.setDownstreamPlan(planB);
 
         TaskEntity task1B = new TaskEntity();
         task1B.setName("Task1B");
         task1B.setAgentGraph(graph);
-        task1B.setUpstreamPlan(planA);
 
         graph.setPlans(List.of(planB, planA));
         graph.setTasks(List.of(task1B, task1A));
+        graph.setEdges(List.of(
+                new GraphEdgeEntity(
+                        "edge-1",
+                        graph,
+                        "PlanA",
+                        ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                        "Task1A",
+                        ai.eigloo.agentic.graph.model.GraphNodeType.TASK),
+                new GraphEdgeEntity(
+                        "edge-2",
+                        graph,
+                        "PlanA",
+                        ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                        "Task1B",
+                        ai.eigloo.agentic.graph.model.GraphNodeType.TASK),
+                new GraphEdgeEntity(
+                        "edge-3",
+                        graph,
+                        "Task1A",
+                        ai.eigloo.agentic.graph.model.GraphNodeType.TASK,
+                        "PlanB",
+                        ai.eigloo.agentic.graph.model.GraphNodeType.PLAN)
+        ));
 
         when(agentGraphRepository.findByIdAndTenantIdWithAllRelations("graph-1", "tenant-a"))
                 .thenReturn(Optional.of(graph));
@@ -107,4 +128,3 @@ class InternalGraphQueryServiceTest {
         return edge.getFromType() + ":" + edge.getFrom() + "->" + edge.getToType() + ":" + edge.getTo();
     }
 }
-

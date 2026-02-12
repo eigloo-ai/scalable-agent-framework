@@ -241,12 +241,13 @@ public class GraphRunLifecycleService {
             }
         }
 
-        Map<String, String> downstreamPlanByTaskName = graph.getTasks().stream()
-                .filter(task -> !isBlank(task.getName()))
-                .filter(task -> task.getDownstreamPlan() != null && !isBlank(task.getDownstreamPlan().getName()))
+        Map<String, String> downstreamPlanByTaskName = graph.getEdges().stream()
+                .filter(edge -> edge.getFromNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.TASK)
+                .filter(edge -> edge.getToNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.PLAN)
+                .filter(edge -> !isBlank(edge.getFromNodeName()) && !isBlank(edge.getToNodeName()))
                 .collect(Collectors.toMap(
-                        TaskEntity::getName,
-                        task -> task.getDownstreamPlan().getName(),
+                        edge -> edge.getFromNodeName(),
+                        edge -> edge.getToNodeName(),
                         (left, right) -> left,
                         HashMap::new));
 
@@ -264,10 +265,11 @@ public class GraphRunLifecycleService {
     }
 
     private static Set<String> resolveEntryPlanNames(AgentGraphEntity graph) {
-        Set<String> plansWithUpstreamTasks = graph.getTasks().stream()
-                .map(TaskEntity::getDownstreamPlan)
-                .filter(plan -> plan != null && !isBlank(plan.getName()))
-                .map(PlanEntity::getName)
+        Set<String> plansWithUpstreamTasks = graph.getEdges().stream()
+                .filter(edge -> edge.getFromNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.TASK)
+                .filter(edge -> edge.getToNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.PLAN)
+                .map(edge -> edge.getToNodeName())
+                .filter(name -> !isBlank(name))
                 .collect(Collectors.toSet());
 
         Set<String> entryPlans = new HashSet<>();

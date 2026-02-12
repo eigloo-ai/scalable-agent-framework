@@ -17,18 +17,15 @@ public class TaskDto {
     
     @Size(max = 500, message = "Task label cannot exceed 500 characters")
     private String label;
-    
-    private String upstreamPlanId;
-    
+
     private List<ExecutorFileDto> files;
 
     public TaskDto() {
     }
 
-    public TaskDto(String name, String label, String upstreamPlanId, List<ExecutorFileDto> files) {
+    public TaskDto(String name, String label, List<ExecutorFileDto> files) {
         this.name = name;
         this.label = label;
-        this.upstreamPlanId = upstreamPlanId;
         this.files = files;
     }
 
@@ -46,14 +43,6 @@ public class TaskDto {
 
     public void setLabel(String label) {
         this.label = label;
-    }
-
-    public String getUpstreamPlanId() {
-        return upstreamPlanId;
-    }
-
-    public void setUpstreamPlanId(String upstreamPlanId) {
-        this.upstreamPlanId = upstreamPlanId;
     }
 
     public List<ExecutorFileDto> getFiles() {

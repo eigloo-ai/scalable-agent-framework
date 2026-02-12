@@ -3,7 +3,6 @@ package ai.eigloo.agentic.controlplane.service;
 import ai.eigloo.agentic.graph.api.GraphLookupEdge;
 import ai.eigloo.agentic.graph.api.GraphLookupNodeType;
 import ai.eigloo.agentic.graph.api.GraphLookupResponse;
-import ai.eigloo.agentic.graph.api.GraphLookupTask;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -73,20 +72,20 @@ class TaskLookupServiceTest {
     }
 
     @Test
-    void lookupDownstreamPlanNames_ShouldFallbackToTaskShape_WhenEdgesAbsent() {
+    void lookupDownstreamPlanNames_ShouldReturnEmpty_WhenEdgesAbsent() {
         GraphLookupResponse graph = new GraphLookupResponse(
                 "graph-1",
                 "tenant-a",
                 "ACTIVE",
                 List.of(),
-                List.of(new GraphLookupTask("Task1A", "PlanA", "PlanB", List.of()))
+                List.of()
         );
 
         when(dataPlaneGraphClient.getGraph("tenant-a", "graph-1")).thenReturn(Optional.of(graph));
 
         List<String> downstreamPlans = taskLookupService.lookupDownstreamPlanNames("Task1A", "tenant-a", "graph-1");
 
-        assertEquals(List.of("PlanB"), downstreamPlans);
+        assertEquals(List.of(), downstreamPlans);
     }
 
     @Test
@@ -102,4 +101,3 @@ class TaskLookupServiceTest {
         assertEquals("graph_id is required for task/plan lookup", ex.getMessage());
     }
 }
-

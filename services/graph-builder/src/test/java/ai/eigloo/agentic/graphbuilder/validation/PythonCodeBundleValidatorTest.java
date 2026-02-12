@@ -1,6 +1,8 @@
 package ai.eigloo.agentic.graphbuilder.validation;
 
 import ai.eigloo.agentic.graph.model.AgentGraph;
+import ai.eigloo.agentic.graph.model.GraphEdge;
+import ai.eigloo.agentic.graph.model.GraphNodeType;
 import ai.eigloo.agentic.graph.model.Plan;
 import ai.eigloo.agentic.graph.model.Task;
 import ai.eigloo.agentic.graph.exception.GraphValidationException;
@@ -114,15 +116,19 @@ class PythonCodeBundleValidatorTest {
         
         // Create a plan
         Plan plan = new Plan("plan_data_collection", "Data Collection Plan", 
-            specificationDirectory.resolve("plans").resolve("plan_data_collection"), new HashSet<>(), java.util.List.of());
+            specificationDirectory.resolve("plans").resolve("plan_data_collection"), java.util.List.of());
         plans.put("plan_data_collection", plan);
         
         // Create a task
         Task task = new Task("task_fetch_data", "Fetch Data", 
-            specificationDirectory.resolve("tasks").resolve("task_fetch_data"), "plan_data_collection", java.util.List.of());
+            specificationDirectory.resolve("tasks").resolve("task_fetch_data"), java.util.List.of());
         tasks.put("task_fetch_data", task);
         
-        return AgentGraph.of("PythonCodeBundleTestGraph", plans, tasks, new HashMap<>(), new HashMap<>());
+        return AgentGraph.of(
+            "PythonCodeBundleTestGraph",
+            plans,
+            tasks,
+            java.util.List.of(new GraphEdge("plan_data_collection", GraphNodeType.PLAN, "task_fetch_data", GraphNodeType.TASK)));
     }
     
     private void createValidFileStructure() throws Exception {

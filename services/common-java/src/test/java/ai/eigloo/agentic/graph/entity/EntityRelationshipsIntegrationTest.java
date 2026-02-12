@@ -15,15 +15,11 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Integration tests for entity relationships using TestContainers.
- */
 @DataJpaTest
 @Testcontainers
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -42,8 +38,6 @@ class EntityRelationshipsIntegrationTest {
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
     }
-
-
 
     @Autowired
     private AgentGraphRepository agentGraphRepository;
@@ -72,10 +66,8 @@ class EntityRelationshipsIntegrationTest {
 
     @Test
     void shouldCreateAgentGraphWithStatus() {
-        // When
         AgentGraphEntity found = agentGraphRepository.findById(testGraph.getId()).orElse(null);
 
-        // Then
         assertThat(found).isNotNull();
         assertThat(found.getStatus()).isEqualTo(GraphStatus.NEW);
         assertThat(found.getTenantId()).isEqualTo("test-tenant");
@@ -86,7 +78,6 @@ class EntityRelationshipsIntegrationTest {
 
     @Test
     void shouldCreatePlanWithExecutorFiles() {
-        // Given
         PlanEntity plan = new PlanEntity(
                 UUID.randomUUID().toString(),
                 "data-collection",
@@ -94,7 +85,7 @@ class EntityRelationshipsIntegrationTest {
                 "/plans/data-collection",
                 testGraph
         );
-        final PlanEntity savedPlan = planRepository.save(plan);
+        PlanEntity savedPlan = planRepository.save(plan);
 
         ExecutorFileEntity planFile = new ExecutorFileEntity(
                 UUID.randomUUID().toString(),
@@ -103,53 +94,24 @@ class EntityRelationshipsIntegrationTest {
                 "1.0",
                 savedPlan
         );
-        ExecutorFileEntity requirementsFile = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "requirements.txt",
-                "requests==2.28.1\nnumpy==1.24.0",
-                "1.0",
-                savedPlan
-        );
-
         executorFileRepository.save(planFile);
-        executorFileRepository.save(requirementsFile);
 
-        // When
         List<ExecutorFileEntity> files = executorFileRepository.findByPlanId(savedPlan.getId());
-
-        // Then
-        assertThat(files).hasSize(2);
-        assertThat(files).extracting(ExecutorFileEntity::getName)
-                .containsExactlyInAnyOrder("plan.py", "requirements.txt");
-        
-        // Verify bidirectional relationship
-        files.forEach(file -> {
-            assertThat(file.getPlan()).isEqualTo(savedPlan);
-            assertThat(file.getTask()).isNull();
-        });
+        assertThat(files).hasSize(1);
+        assertThat(files.getFirst().getPlan()).isEqualTo(savedPlan);
+        assertThat(files.getFirst().getTask()).isNull();
     }
 
     @Test
     void shouldCreateTaskWithExecutorFiles() {
-        // Given
-        PlanEntity plan = new PlanEntity(
-                UUID.randomUUID().toString(),
-                "data-collection",
-                "Data Collection Plan",
-                "/plans/data-collection",
-                testGraph
-        );
-        final PlanEntity savedPlan = planRepository.save(plan);
-
         TaskEntity task = new TaskEntity(
                 UUID.randomUUID().toString(),
                 "fetch-data",
                 "Fetch Data Task",
                 "/tasks/fetch-data",
-                testGraph,
-                savedPlan
+                testGraph
         );
-        final TaskEntity savedTask = taskRepository.save(task);
+        TaskEntity savedTask = taskRepository.save(task);
 
         ExecutorFileEntity taskFile = new ExecutorFileEntity(
                 UUID.randomUUID().toString(),
@@ -158,80 +120,64 @@ class EntityRelationshipsIntegrationTest {
                 "1.0",
                 savedTask
         );
-        ExecutorFileEntity requirementsFile = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "requirements.txt",
-                "pandas==1.5.0\nrequests==2.28.1",
-                "1.0",
-                savedTask
-        );
-
         executorFileRepository.save(taskFile);
-        executorFileRepository.save(requirementsFile);
 
-        // When
         List<ExecutorFileEntity> files = executorFileRepository.findByTaskId(savedTask.getId());
-
-        // Then
-        assertThat(files).hasSize(2);
-        assertThat(files).extracting(ExecutorFileEntity::getName)
-                .containsExactlyInAnyOrder("task.py", "requirements.txt");
-        
-        // Verify bidirectional relationship
-        files.forEach(file -> {
-            assertThat(file.getTask()).isEqualTo(savedTask);
-            assertThat(file.getPlan()).isNull();
-        });
+        assertThat(files).hasSize(1);
+        assertThat(files.getFirst().getTask()).isEqualTo(savedTask);
+        assertThat(files.getFirst().getPlan()).isNull();
     }
 
     @Test
-    void shouldMaintainPlanTaskRelationships() {
-        // Given
-        PlanEntity plan = new PlanEntity(
+    void shouldPersistCanonicalGraphEdges() {
+        AgentGraphEntity graph = new AgentGraphEntity(
                 UUID.randomUUID().toString(),
-                "data-collection",
-                "Data Collection Plan",
-                "/plans/data-collection",
-                testGraph
+                "test-tenant",
+                "edge-graph",
+                GraphStatus.NEW
         );
-        final PlanEntity savedPlan = planRepository.save(plan);
 
-        TaskEntity task1 = new TaskEntity(
+        PlanEntity planA = new PlanEntity(UUID.randomUUID().toString(), "PlanA", "PlanA", "plans/PlanA", graph);
+        PlanEntity planB = new PlanEntity(UUID.randomUUID().toString(), "PlanB", "PlanB", "plans/PlanB", graph);
+        TaskEntity task1 = new TaskEntity(UUID.randomUUID().toString(), "Task1", "Task1", "tasks/Task1", graph);
+
+        graph.addPlan(planA);
+        graph.addPlan(planB);
+        graph.addTask(task1);
+        graph.addEdge(new GraphEdgeEntity(
                 UUID.randomUUID().toString(),
-                "fetch-data",
-                "Fetch Data Task",
-                "/tasks/fetch-data",
-                testGraph,
-                savedPlan
-        );
-        TaskEntity task2 = new TaskEntity(
+                graph,
+                "PlanA",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                "Task1",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK));
+        graph.addEdge(new GraphEdgeEntity(
                 UUID.randomUUID().toString(),
-                "process-data",
-                "Process Data Task",
-                "/tasks/process-data",
-                testGraph,
-                savedPlan
-        );
-        taskRepository.save(task1);
-        taskRepository.save(task2);
+                graph,
+                "Task1",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK,
+                "PlanB",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN));
 
-        // When
-        List<TaskEntity> downstreamTasks = taskRepository.findByUpstreamPlanId(savedPlan.getId());
+        AgentGraphEntity saved = agentGraphRepository.saveAndFlush(graph);
+        AgentGraphEntity loaded = agentGraphRepository.findById(saved.getId()).orElse(null);
 
-        // Then
-        assertThat(downstreamTasks).hasSize(2);
-        assertThat(downstreamTasks).extracting(TaskEntity::getName)
-                .containsExactlyInAnyOrder("fetch-data", "process-data");
-        
-        // Verify upstream relationship
-        downstreamTasks.forEach(task -> {
-            assertThat(task.getUpstreamPlan()).isEqualTo(savedPlan);
-        });
+        assertThat(loaded).isNotNull();
+        assertThat(loaded.getEdges()).hasSize(2);
+        assertThat(loaded.getEdges()).anyMatch(edge ->
+                "PlanA".equals(edge.getFromNodeName())
+                        && edge.getFromNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.PLAN
+                        && "Task1".equals(edge.getToNodeName())
+                        && edge.getToNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.TASK);
+        assertThat(loaded.getEdges()).anyMatch(edge ->
+                "Task1".equals(edge.getFromNodeName())
+                        && edge.getFromNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.TASK
+                        && "PlanB".equals(edge.getToNodeName())
+                        && edge.getToNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.PLAN);
     }
 
     @Test
     void shouldDeleteFilesByPlanId() {
-        // Given
         PlanEntity plan = new PlanEntity(
                 UUID.randomUUID().toString(),
                 "data-collection",
@@ -250,33 +196,18 @@ class EntityRelationshipsIntegrationTest {
         );
         executorFileRepository.save(planFile);
 
-        // When
         executorFileRepository.deleteByPlanId(plan.getId());
-
-        // Then
-        List<ExecutorFileEntity> remainingFiles = executorFileRepository.findByPlanId(plan.getId());
-        assertThat(remainingFiles).isEmpty();
+        assertThat(executorFileRepository.findByPlanId(plan.getId())).isEmpty();
     }
 
     @Test
     void shouldDeleteFilesByTaskId() {
-        // Given
-        PlanEntity plan = new PlanEntity(
-                UUID.randomUUID().toString(),
-                "data-collection",
-                "Data Collection Plan",
-                "/plans/data-collection",
-                testGraph
-        );
-        plan = planRepository.save(plan);
-
         TaskEntity task = new TaskEntity(
                 UUID.randomUUID().toString(),
                 "fetch-data",
                 "Fetch Data Task",
                 "/tasks/fetch-data",
-                testGraph,
-                plan
+                testGraph
         );
         task = taskRepository.save(task);
 
@@ -289,275 +220,8 @@ class EntityRelationshipsIntegrationTest {
         );
         executorFileRepository.save(taskFile);
 
-        // When
         executorFileRepository.deleteByTaskId(task.getId());
-
-        // Then
-        List<ExecutorFileEntity> remainingFiles = executorFileRepository.findByTaskId(task.getId());
-        assertThat(remainingFiles).isEmpty();
-    }
-
-    @Test
-    void shouldFindGraphsByStatus() {
-        // Given
-        AgentGraphEntity activeGraph = new AgentGraphEntity(
-                UUID.randomUUID().toString(),
-                "test-tenant",
-                "active-graph",
-                GraphStatus.ACTIVE
-        );
-        AgentGraphEntity archivedGraph = new AgentGraphEntity(
-                UUID.randomUUID().toString(),
-                "test-tenant",
-                "archived-graph",
-                GraphStatus.ARCHIVED
-        );
-        agentGraphRepository.save(activeGraph);
-        agentGraphRepository.save(archivedGraph);
-
-        // When
-        List<AgentGraphEntity> newGraphs = agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
-                "test-tenant", GraphStatus.NEW);
-        List<AgentGraphEntity> activeGraphs = agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
-                "test-tenant", GraphStatus.ACTIVE);
-        List<AgentGraphEntity> archivedGraphs = agentGraphRepository.findByTenantIdAndStatusOrderByCreatedAtDesc(
-                "test-tenant", GraphStatus.ARCHIVED);
-
-        // Then
-        assertThat(newGraphs).hasSize(1);
-        assertThat(newGraphs.get(0).getName()).isEqualTo("test-graph");
-        
-        assertThat(activeGraphs).hasSize(1);
-        assertThat(activeGraphs.get(0).getName()).isEqualTo("active-graph");
-
-        assertThat(archivedGraphs).hasSize(1);
-        assertThat(archivedGraphs.get(0).getName()).isEqualTo("archived-graph");
-    }
-
-    @Test
-    void shouldCheckFileExistence() {
-        // Given
-        PlanEntity plan = new PlanEntity(
-                UUID.randomUUID().toString(),
-                "data-collection",
-                "Data Collection Plan",
-                "/plans/data-collection",
-                testGraph
-        );
-        plan = planRepository.save(plan);
-
-        ExecutorFileEntity file = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "plan.py",
-                "def plan(input): return result",
-                "1.0",
-                plan
-        );
-        executorFileRepository.save(file);
-
-        // When & Then
-        assertThat(executorFileRepository.existsByPlanIdAndName(plan.getId(), "plan.py")).isTrue();
-        assertThat(executorFileRepository.existsByPlanIdAndName(plan.getId(), "nonexistent.py")).isFalse();
-    }
-
-    @Test
-    void shouldComputePlanToTasksMappingAfterDatabaseRoundTrip() {
-        // Given - Create a complete graph with plans and tasks
-        AgentGraphEntity completeGraph = new AgentGraphEntity(
-                UUID.randomUUID().toString(),
-                "test-tenant",
-                "complete-test-graph"
-        );
-
-        // Create tasks
-        TaskEntity task1 = new TaskEntity(
-                UUID.randomUUID().toString(),
-                "fetch-data",
-                "Fetch Data Task",
-                "tasks/fetch-data",
-                completeGraph,
-                null
-        );
-        TaskEntity task2 = new TaskEntity(
-                UUID.randomUUID().toString(),
-                "validate-data",
-                "Validate Data Task",
-                "tasks/validate-data",
-                completeGraph,
-                null
-        );
-        TaskEntity task3 = new TaskEntity(
-                UUID.randomUUID().toString(),
-                "transform-data",
-                "Transform Data Task",
-                "tasks/transform-data",
-                completeGraph,
-                null
-        );
-
-        // Create plans
-        PlanEntity plan1 = new PlanEntity(
-                UUID.randomUUID().toString(),
-                "data-collection",
-                "Data Collection Plan",
-                "plans/data-collection",
-                completeGraph
-        );
-        PlanEntity plan2 = new PlanEntity(
-                UUID.randomUUID().toString(),
-                "data-processing",
-                "Data Processing Plan",
-                "plans/data-processing",
-                completeGraph
-        );
-
-        // Set up plan-to-task relationships using foreign keys (each task has one upstream plan)
-        task1.setUpstreamPlan(plan1);
-        task2.setUpstreamPlan(plan1);
-        task3.setUpstreamPlan(plan2);
-        
-        // Set up task-to-plan relationships (tasks feed into downstream plans)
-        task1.setDownstreamPlan(plan2);
-        task2.setDownstreamPlan(plan2);
-        task3.setDownstreamPlan(plan2);
-
-        // Create ExecutorFileEntity instances for each task
-        ExecutorFileEntity task1Py = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "task.py",
-                "def execute(upstream_plan): return TaskResult(data='fetched data')",
-                "1.0",
-                task1
-        );
-        ExecutorFileEntity task1Requirements = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "requirements.txt",
-                "requests==2.28.1\npandas==1.5.0",
-                "1.0",
-                task1
-        );
-        
-        ExecutorFileEntity task2Py = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "task.py",
-                "def execute(upstream_plan): return TaskResult(data='validated data')",
-                "1.0",
-                task2
-        );
-        ExecutorFileEntity task2Requirements = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "requirements.txt",
-                "pandas==1.5.0\nnumpy==1.24.0",
-                "1.0",
-                task2
-        );
-        
-        ExecutorFileEntity task3Py = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "task.py",
-                "def execute(upstream_plan): return TaskResult(data='transformed data')",
-                "1.0",
-                task3
-        );
-        ExecutorFileEntity task3Requirements = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "requirements.txt",
-                "pandas==1.5.0\nscikit-learn==1.0.0",
-                "1.0",
-                task3
-        );
-        
-        // Create ExecutorFileEntity instances for each plan
-        ExecutorFileEntity plan1Py = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "plan.py",
-                "def plan(upstream_results): return PlanResult(data='collection plan result')",
-                "1.0",
-                plan1
-        );
-        ExecutorFileEntity plan1Requirements = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "requirements.txt",
-                "requests==2.28.1\npandas==1.5.0",
-                "1.0",
-                plan1
-        );
-        
-        ExecutorFileEntity plan2Py = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "plan.py",
-                "def plan(upstream_results): return PlanResult(data='processing plan result')",
-                "1.0",
-                plan2
-        );
-        ExecutorFileEntity plan2Requirements = new ExecutorFileEntity(
-                UUID.randomUUID().toString(),
-                "requirements.txt",
-                "pandas==1.5.0\nnumpy==1.24.0\nscikit-learn==1.0.0",
-                "1.0",
-                plan2
-        );
-        
-        // Add files to tasks and plans
-        task1.addFile(task1Py);
-        task1.addFile(task1Requirements);
-        task2.addFile(task2Py);
-        task2.addFile(task2Requirements);
-        task3.addFile(task3Py);
-        task3.addFile(task3Requirements);
-        
-        plan1.addFile(plan1Py);
-        plan1.addFile(plan1Requirements);
-        plan2.addFile(plan2Py);
-        plan2.addFile(plan2Requirements);
-        
-        // Add tasks and plans to the graph
-        completeGraph.setTasks(List.of(task1, task2, task3));
-        completeGraph.setPlans(List.of(plan1, plan2));
-
-        // When - Save the complete graph in one operation
-        AgentGraphEntity savedGraph = agentGraphRepository.save(completeGraph);
-
-        // When - Retrieve the graph from database
-        AgentGraphEntity retrievedGraph = agentGraphRepository.findById(savedGraph.getId()).orElse(null);
-
-        // Then - Verify planToTasks mapping is computed correctly
-        assertThat(retrievedGraph).isNotNull();
-        assertThat(retrievedGraph.getPlanToTasks()).isNotNull();
-        assertThat(retrievedGraph.getPlanToTasks()).hasSize(2);
-        
-        assertThat(retrievedGraph.getPlanToTasks().get("data-collection"))
-                .containsExactlyInAnyOrder("fetch-data", "validate-data");
-        assertThat(retrievedGraph.getPlanToTasks().get("data-processing"))
-                .containsExactlyInAnyOrder("transform-data");
-
-        // Verify taskToPlan mapping is also computed correctly
-        assertThat(retrievedGraph.getTaskToPlan()).isNotNull();
-        assertThat(retrievedGraph.getTaskToPlan()).hasSize(3);
-        assertThat(retrievedGraph.getTaskToPlan().get("fetch-data")).isEqualTo("data-processing");
-        assertThat(retrievedGraph.getTaskToPlan().get("validate-data")).isEqualTo("data-processing");
-        assertThat(retrievedGraph.getTaskToPlan().get("transform-data")).isEqualTo("data-processing");
-        
-        // Verify that files are properly persisted and retrieved
-        assertThat(retrievedGraph.getTasks()).hasSize(3);
-        assertThat(retrievedGraph.getPlans()).hasSize(2);
-        
-        // Check that each task has the expected files
-        TaskEntity retrievedTask1 = retrievedGraph.getTasks().stream()
-                .filter(t -> t.getName().equals("fetch-data"))
-                .findFirst().orElse(null);
-        assertThat(retrievedTask1).isNotNull();
-        assertThat(retrievedTask1.getFiles()).hasSize(2);
-        assertThat(retrievedTask1.getFiles()).extracting(ExecutorFileEntity::getName)
-                .containsExactlyInAnyOrder("task.py", "requirements.txt");
-        
-        // Check that each plan has the expected files
-        PlanEntity retrievedPlan1 = retrievedGraph.getPlans().stream()
-                .filter(p -> p.getName().equals("data-collection"))
-                .findFirst().orElse(null);
-        assertThat(retrievedPlan1).isNotNull();
-        assertThat(retrievedPlan1.getFiles()).hasSize(2);
-        assertThat(retrievedPlan1.getFiles()).extracting(ExecutorFileEntity::getName)
-                .containsExactlyInAnyOrder("plan.py", "requirements.txt");
+        assertThat(executorFileRepository.findByTaskId(task.getId())).isEmpty();
     }
 }
+

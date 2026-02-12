@@ -16,8 +16,7 @@ import java.util.List;
 @Table(name = "tasks", indexes = {
     @Index(name = "idx_task_graph_id", columnList = "graph_id"),
     @Index(name = "idx_task_name", columnList = "name"),
-    @Index(name = "idx_task_graph_name", columnList = "graph_id, name"),
-    @Index(name = "idx_task_upstream_plan", columnList = "upstream_plan_id")
+    @Index(name = "idx_task_graph_name", columnList = "graph_id, name")
 })
 public class TaskEntity {
 
@@ -43,16 +42,6 @@ public class TaskEntity {
     @JoinColumn(name = "graph_id", nullable = false)
     private AgentGraphEntity agentGraph;
 
-    // Relationship to upstream plan
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "upstream_plan_id")
-    private PlanEntity upstreamPlan;
-
-    // Relationship to downstream plan (Task → Plan)
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "downstream_plan_id")
-    private PlanEntity downstreamPlan;
-
     // Relationship to ExecutorFiles
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @Fetch(FetchMode.SUBSELECT)
@@ -63,26 +52,12 @@ public class TaskEntity {
 
     // Constructor for creating new entities
     public TaskEntity(String id, String name, String label, String taskSource, 
-                     AgentGraphEntity agentGraph, PlanEntity upstreamPlan) {
+                      AgentGraphEntity agentGraph) {
         this.id = id;
         this.name = name;
         this.label = label;
         this.taskSource = taskSource;
         this.agentGraph = agentGraph;
-        this.upstreamPlan = upstreamPlan;
-        this.downstreamPlan = null; // Will be set via relationships
-    }
-
-    // Full constructor for creating new entities with both plans
-    public TaskEntity(String id, String name, String label, String taskSource, 
-                     AgentGraphEntity agentGraph, PlanEntity upstreamPlan, PlanEntity downstreamPlan) {
-        this.id = id;
-        this.name = name;
-        this.label = label;
-        this.taskSource = taskSource;
-        this.agentGraph = agentGraph;
-        this.upstreamPlan = upstreamPlan;
-        this.downstreamPlan = downstreamPlan;
     }
 
     // Getters and setters
@@ -124,22 +99,6 @@ public class TaskEntity {
 
     public void setAgentGraph(AgentGraphEntity agentGraph) {
         this.agentGraph = agentGraph;
-    }
-
-    public PlanEntity getUpstreamPlan() {
-        return upstreamPlan;
-    }
-
-    public void setUpstreamPlan(PlanEntity upstreamPlan) {
-        this.upstreamPlan = upstreamPlan;
-    }
-
-    public PlanEntity getDownstreamPlan() {
-        return downstreamPlan;
-    }
-
-    public void setDownstreamPlan(PlanEntity downstreamPlan) {
-        this.downstreamPlan = downstreamPlan;
     }
 
     public List<ExecutorFileEntity> getFiles() {

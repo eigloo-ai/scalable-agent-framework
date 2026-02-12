@@ -365,45 +365,9 @@ public class ValidationServiceImpl implements ValidationService {
 
     private List<GraphEdgeDto> deriveCanonicalEdges(AgentGraphDto graph) {
         LinkedHashMap<String, GraphEdgeDto> deduped = new LinkedHashMap<>();
-
-        if (graph.getEdges() != null && !graph.getEdges().isEmpty()) {
+        if (graph.getEdges() != null) {
             for (GraphEdgeDto edge : graph.getEdges()) {
                 addEdge(deduped, edge.getFrom(), edge.getFromType(), edge.getTo(), edge.getToType());
-            }
-            return new ArrayList<>(deduped.values());
-        }
-
-        if (graph.getTasks() != null) {
-            for (TaskDto task : graph.getTasks()) {
-                if (task.getUpstreamPlanId() != null && !task.getUpstreamPlanId().isBlank()) {
-                    addEdge(deduped, task.getUpstreamPlanId(), GraphNodeType.PLAN, task.getName(), GraphNodeType.TASK);
-                }
-            }
-        }
-
-        if (graph.getPlans() != null) {
-            for (PlanDto plan : graph.getPlans()) {
-                if (plan.getUpstreamTaskIds() == null) {
-                    continue;
-                }
-                for (String taskName : plan.getUpstreamTaskIds()) {
-                    addEdge(deduped, taskName, GraphNodeType.TASK, plan.getName(), GraphNodeType.PLAN);
-                }
-            }
-        }
-
-        if (graph.getPlanToTasks() != null) {
-            for (Map.Entry<String, Set<String>> entry : graph.getPlanToTasks().entrySet()) {
-                for (String taskName : entry.getValue()) {
-                    addEdge(deduped, entry.getKey(), GraphNodeType.PLAN, taskName, GraphNodeType.TASK);
-                }
-            }
-        }
-
-        if (graph.getTaskToPlan() != null) {
-            // Legacy semantics retained for compatibility: Task -> upstream Plan.
-            for (Map.Entry<String, String> entry : graph.getTaskToPlan().entrySet()) {
-                addEdge(deduped, entry.getValue(), GraphNodeType.PLAN, entry.getKey(), GraphNodeType.TASK);
             }
         }
 

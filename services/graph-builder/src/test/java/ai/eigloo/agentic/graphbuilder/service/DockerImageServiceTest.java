@@ -63,7 +63,7 @@ class DockerImageServiceTest {
         // Given
         String tenantId = "test-tenant";
         String processId = "test-process-123";
-        Task task = new Task("test_task", "Test Task", tempDir.resolve("task.py"), "test_plan", java.util.List.of());
+        Task task = new Task("test_task", "Test Task", tempDir.resolve("task.py"), java.util.List.of());
         
         // Create task directory with required files
         Path taskDir = tempDir.resolve("task_dir");
@@ -97,7 +97,7 @@ class DockerImageServiceTest {
         // Given
         String tenantId = "test-tenant";
         String processId = "test-process-123";
-        Task task = new Task("test_task", "Test Task", tempDir.resolve("task.py"), "test_plan", java.util.List.of());
+        Task task = new Task("test_task", "Test Task", tempDir.resolve("task.py"), java.util.List.of());
         
         // Create task directory with requirements.txt
         Path taskDir = tempDir.resolve("task_dir");
@@ -130,7 +130,7 @@ class DockerImageServiceTest {
         // Given
         String tenantId = "test-tenant";
         String processId = "test-process-123";
-        Task task = new Task("test_task", "Test Task", tempDir.resolve("task.py"), "test_plan", java.util.List.of());
+        Task task = new Task("test_task", "Test Task", tempDir.resolve("task.py"), java.util.List.of());
         
         // Create task directory without task.py
         Path taskDir = tempDir.resolve("task_dir");
@@ -148,7 +148,7 @@ class DockerImageServiceTest {
         // Given
         String tenantId = "test-tenant";
         String processId = "test-process-123";
-        Task task = new Task("test_task", "Test Task", tempDir.resolve("task.py"), "test_plan", java.util.List.of());
+        Task task = new Task("test_task", "Test Task", tempDir.resolve("task.py"), java.util.List.of());
         
         // Create task directory with required files
         Path taskDir = tempDir.resolve("task_dir");
@@ -176,7 +176,7 @@ class DockerImageServiceTest {
         // Given
         String tenantId = "test-tenant";
         String processId = "test-process-123";
-        Plan plan = new Plan("test_plan", "Test Plan", tempDir.resolve("plan.py"), Set.of(), java.util.List.of());
+        Plan plan = new Plan("test_plan", "Test Plan", tempDir.resolve("plan.py"), java.util.List.of());
         
         // Create plan directory with required files
         Path planDir = tempDir.resolve("plan_dir");
@@ -210,7 +210,7 @@ class DockerImageServiceTest {
         // Given
         String tenantId = "test-tenant";
         String processId = "test-process-123";
-        Plan plan = new Plan("test_plan", "Test Plan", tempDir.resolve("plan.py"), Set.of(), java.util.List.of());
+        Plan plan = new Plan("test_plan", "Test Plan", tempDir.resolve("plan.py"), java.util.List.of());
         
         // Create plan directory without plan.py
         Path planDir = tempDir.resolve("plan_dir");
