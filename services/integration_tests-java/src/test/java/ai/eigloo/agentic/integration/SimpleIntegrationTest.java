@@ -14,6 +14,7 @@ import ai.eigloo.agentic.executorjava.ExecutorJavaApplication;
 import ai.eigloo.agentic.executorjava.service.PythonProcessExecutor;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
 import ai.eigloo.agentic.graph.entity.ExecutorFileEntity;
+import ai.eigloo.agentic.graph.entity.GraphEdgeEntity;
 import ai.eigloo.agentic.graph.entity.GraphStatus;
 import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.entity.TaskEntity;
@@ -221,9 +222,7 @@ public class SimpleIntegrationTest {
                 "Task1A",
                 "Task 1A",
                 "task.py",
-                graph,
-                planA,
-                planB
+                graph
         );
         task1A.addFile(new ExecutorFileEntity(UUID.randomUUID().toString(), "task.py", TASK_SCRIPT, "1.0.0", task1A));
 
@@ -232,8 +231,7 @@ public class SimpleIntegrationTest {
                 "Task1B",
                 "Task 1B",
                 "task.py",
-                graph,
-                planA
+                graph
         );
         task1B.addFile(new ExecutorFileEntity(UUID.randomUUID().toString(), "task.py", TASK_SCRIPT, "1.0.0", task1B));
 
@@ -242,8 +240,7 @@ public class SimpleIntegrationTest {
                 "Task2",
                 "Task 2",
                 "task.py",
-                graph,
-                planB
+                graph
         );
         task2.addFile(new ExecutorFileEntity(UUID.randomUUID().toString(), "task.py", TASK_SCRIPT, "1.0.0", task2));
 
@@ -252,6 +249,34 @@ public class SimpleIntegrationTest {
         graph.addTask(task1A);
         graph.addTask(task1B);
         graph.addTask(task2);
+        graph.addEdge(new GraphEdgeEntity(
+                UUID.randomUUID().toString(),
+                graph,
+                "PlanA",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                "Task1A",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK));
+        graph.addEdge(new GraphEdgeEntity(
+                UUID.randomUUID().toString(),
+                graph,
+                "PlanA",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                "Task1B",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK));
+        graph.addEdge(new GraphEdgeEntity(
+                UUID.randomUUID().toString(),
+                graph,
+                "Task1A",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK,
+                "PlanB",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN));
+        graph.addEdge(new GraphEdgeEntity(
+                UUID.randomUUID().toString(),
+                graph,
+                "PlanB",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                "Task2",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK));
 
         graphRepository.saveAndFlush(graph);
     }
@@ -279,8 +304,7 @@ public class SimpleIntegrationTest {
                 BLOCKED_TASK_NAME,
                 "Task Never",
                 "task.py",
-                graph,
-                failingPlan
+                graph
         );
         blockedTask.addFile(new ExecutorFileEntity(
                 UUID.randomUUID().toString(),
@@ -291,6 +315,13 @@ public class SimpleIntegrationTest {
 
         graph.addPlan(failingPlan);
         graph.addTask(blockedTask);
+        graph.addEdge(new GraphEdgeEntity(
+                UUID.randomUUID().toString(),
+                graph,
+                FAILING_PLAN_NAME,
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                BLOCKED_TASK_NAME,
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK));
         graphRepository.saveAndFlush(graph);
     }
 

@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * Data Transfer Object for Plan operations.
@@ -18,18 +17,15 @@ public class PlanDto {
     
     @Size(max = 500, message = "Plan label cannot exceed 500 characters")
     private String label;
-    
-    private Set<String> upstreamTaskIds;
-    
+
     private List<ExecutorFileDto> files;
 
     public PlanDto() {
     }
 
-    public PlanDto(String name, String label, Set<String> upstreamTaskIds, List<ExecutorFileDto> files) {
+    public PlanDto(String name, String label, List<ExecutorFileDto> files) {
         this.name = name;
         this.label = label;
-        this.upstreamTaskIds = upstreamTaskIds;
         this.files = files;
     }
 
@@ -47,14 +43,6 @@ public class PlanDto {
 
     public void setLabel(String label) {
         this.label = label;
-    }
-
-    public Set<String> getUpstreamTaskIds() {
-        return upstreamTaskIds;
-    }
-
-    public void setUpstreamTaskIds(Set<String> upstreamTaskIds) {
-        this.upstreamTaskIds = upstreamTaskIds;
     }
 
     public List<ExecutorFileDto> getFiles() {

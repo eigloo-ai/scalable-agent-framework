@@ -36,17 +36,14 @@ describe('GraphCanvas', () => {
     name: 'Test Graph',
     tenantId: 'test-tenant',
     plans: [
-      { name: 'plan1', label: 'Plan 1', upstreamTaskIds: [] }
+      { name: 'plan1', label: 'Plan 1' }
     ],
     tasks: [
       { name: 'task1', label: 'Task 1' }
     ],
-    planToTasks: {
-      'plan1': ['task1']
-    },
-    taskToPlan: {
-      'task1': 'plan1'
-    }
+    edges: [
+      { from: 'plan1', fromType: 'PLAN', to: 'task1', toType: 'TASK' }
+    ]
   };
 
   beforeEach(() => {

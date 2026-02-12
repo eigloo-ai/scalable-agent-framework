@@ -1,6 +1,8 @@
 package ai.eigloo.agentic.graphbuilder.validation;
 
 import ai.eigloo.agentic.graph.model.AgentGraph;
+import ai.eigloo.agentic.graph.model.GraphEdge;
+import ai.eigloo.agentic.graph.model.GraphNodeType;
 import ai.eigloo.agentic.graph.model.Plan;
 import ai.eigloo.agentic.graph.model.Task;
 import ai.eigloo.agentic.graph.exception.GraphValidationException;
@@ -10,7 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 
 /**
@@ -137,65 +139,54 @@ public class GraphValidator {
     }
     
     private static void validateEdgeReferences(AgentGraph graph) throws GraphValidationException {
-        // Check that all task upstream plans exist
-        for (Map.Entry<String, String> entry : graph.taskToPlan().entrySet()) {
-            String taskName = entry.getKey();
-            String planName = entry.getValue();
-            
-            if (!graph.plans().containsKey(planName)) {
+        for (GraphEdge edge : graph.edges()) {
+            if (edge.fromType() == GraphNodeType.PLAN && !graph.plans().containsKey(edge.from())) {
                 throw GraphValidationException.invalidGraph(
-                    GraphValidationException.ViolationType.DANGLING_EDGE,
-                    taskName,
-                    String.format("Task %s references non-existent plan: %s", taskName, planName));
+                        GraphValidationException.ViolationType.DANGLING_EDGE,
+                        edge.from(),
+                        String.format("Edge references non-existent plan: %s", edge.from()));
             }
-        }
-        
-        // Check that all plan upstream tasks exist
-        for (Plan plan : graph.plans().values()) {
-            for (String taskId : plan.upstreamTaskIds()) {
-                if (!graph.tasks().containsKey(taskId)) {
-                                    throw GraphValidationException.invalidGraph(
-                    GraphValidationException.ViolationType.DANGLING_EDGE,
-                    plan.name(),
-                    String.format("Plan %s references non-existent task: %s", plan.name(), taskId));
-                }
+            if (edge.fromType() == GraphNodeType.TASK && !graph.tasks().containsKey(edge.from())) {
+                throw GraphValidationException.invalidGraph(
+                        GraphValidationException.ViolationType.DANGLING_EDGE,
+                        edge.from(),
+                        String.format("Edge references non-existent task: %s", edge.from()));
             }
-        }
-        
-        // Check that all plan-to-task edges reference existing tasks
-        for (Map.Entry<String, Set<String>> entry : graph.planToTasks().entrySet()) {
-            String planName = entry.getKey();
-            Set<String> taskNames = entry.getValue();
-            
-            for (String taskName : taskNames) {
-                if (!graph.tasks().containsKey(taskName)) {
-                                    throw GraphValidationException.invalidGraph(
-                    GraphValidationException.ViolationType.DANGLING_EDGE,
-                    planName,
-                    String.format("Plan %s references non-existent task: %s", planName, taskName));
-                }
+            if (edge.toType() == GraphNodeType.PLAN && !graph.plans().containsKey(edge.to())) {
+                throw GraphValidationException.invalidGraph(
+                        GraphValidationException.ViolationType.DANGLING_EDGE,
+                        edge.to(),
+                        String.format("Edge references non-existent plan: %s", edge.to()));
+            }
+            if (edge.toType() == GraphNodeType.TASK && !graph.tasks().containsKey(edge.to())) {
+                throw GraphValidationException.invalidGraph(
+                        GraphValidationException.ViolationType.DANGLING_EDGE,
+                        edge.to(),
+                        String.format("Edge references non-existent task: %s", edge.to()));
             }
         }
     }
     
     private static void validateTaskUpstreamConstraint(AgentGraph graph) throws GraphValidationException {
-        // Check that each task has exactly one upstream plan
+        HashMap<String, String> taskToUpstreamPlan = new HashMap<>();
+        for (GraphEdge edge : graph.edges()) {
+            if (edge.fromType() == GraphNodeType.PLAN && edge.toType() == GraphNodeType.TASK) {
+                String previous = taskToUpstreamPlan.put(edge.to(), edge.from());
+                if (previous != null && !previous.equals(edge.from())) {
+                    throw GraphValidationException.invalidGraph(
+                        GraphValidationException.ViolationType.INVALID_STRUCTURE,
+                        edge.to(),
+                        String.format("Task %s has multiple upstream plans (%s, %s)", edge.to(), previous, edge.from()));
+                }
+            }
+        }
+
         for (Task task : graph.tasks().values()) {
-            String upstreamPlan = graph.getUpstreamPlan(task.name());
-            if (upstreamPlan == null) {
+            if (!taskToUpstreamPlan.containsKey(task.name())) {
                 throw GraphValidationException.invalidGraph(
                     GraphValidationException.ViolationType.INVALID_STRUCTURE,
                     task.name(),
                     String.format("Task %s has no upstream plan", task.name()));
-            }
-            
-            // Check that the task's upstreamPlanId matches the graph's taskToPlan mapping
-            if (!upstreamPlan.equals(task.upstreamPlanId())) {
-                throw GraphValidationException.invalidGraph(
-                    GraphValidationException.ViolationType.INVALID_STRUCTURE,
-                    task.name(),
-                    String.format("Task %s upstream plan mismatch: task says %s, graph says %s", 
-                    task.name(), task.upstreamPlanId(), upstreamPlan));
             }
         }
     }
@@ -204,20 +195,9 @@ public class GraphValidator {
         // Find all connected nodes
         Set<String> connectedNodes = new HashSet<>();
         
-        // Start with nodes that have edges
-        for (String planName : graph.planToTasks().keySet()) {
-            if (!graph.planToTasks().get(planName).isEmpty()) {
-                connectedNodes.add(planName);
-                connectedNodes.addAll(graph.planToTasks().get(planName));
-            }
-        }
-        
-        for (String taskName : graph.taskToPlan().keySet()) {
-            String upstreamPlan = graph.taskToPlan().get(taskName);
-            if (upstreamPlan != null) {
-                connectedNodes.add(taskName);
-                connectedNodes.add(upstreamPlan);
-            }
+        for (GraphEdge edge : graph.edges()) {
+            connectedNodes.add(edge.from());
+            connectedNodes.add(edge.to());
         }
         
         // Check for orphaned nodes

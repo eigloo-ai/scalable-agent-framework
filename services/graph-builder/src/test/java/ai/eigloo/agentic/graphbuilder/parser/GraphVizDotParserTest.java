@@ -134,7 +134,7 @@ class GraphVizDotParserTest {
     }
     
     @Test
-    void testUpstreamPlanIdIsCorrectlySet() throws Exception {
+    void testIncomingPlanEdgesAreCorrectlyResolved() throws Exception {
         // Given
         Path specDir = createValidGraphSpecification();
         
@@ -142,18 +142,18 @@ class GraphVizDotParserTest {
         AgentGraph graph = parser.parse(specDir);
         
         // Then
-        // Verify that each task has the correct upstream plan ID
+        // Verify that each task has the correct incoming PLAN->TASK edge
         Task fetchDataTask = graph.getTask("task_fetch_data");
         assertThat(fetchDataTask).isNotNull();
-        assertThat(fetchDataTask.upstreamPlanId()).isEqualTo("plan_data_collection");
+        assertThat(graph.getUpstreamPlan(fetchDataTask.name())).isEqualTo("plan_data_collection");
         
         Task processDataTask = graph.getTask("task_process_data");
         assertThat(processDataTask).isNotNull();
-        assertThat(processDataTask.upstreamPlanId()).isEqualTo("plan_data_collection");
+        assertThat(graph.getUpstreamPlan(processDataTask.name())).isEqualTo("plan_data_collection");
         
         Task generateReportTask = graph.getTask("task_generate_report");
         assertThat(generateReportTask).isNotNull();
-        assertThat(generateReportTask.upstreamPlanId()).isEqualTo("plan_analysis");
+        assertThat(graph.getUpstreamPlan(generateReportTask.name())).isEqualTo("plan_analysis");
     }
     
     @Test
@@ -179,15 +179,15 @@ class GraphVizDotParserTest {
         assertThat(graph.planCount()).isEqualTo(3);
         assertThat(graph.taskCount()).isEqualTo(4);
         
-        // Verify upstream plan IDs for each task
-        assertThat(graph.getTask("task_fetch_data").upstreamPlanId()).isEqualTo("plan_data_collection");
-        assertThat(graph.getTask("task_process_data").upstreamPlanId()).isEqualTo("plan_data_collection");
-        assertThat(graph.getTask("task_analyze_data").upstreamPlanId()).isEqualTo("plan_analysis");
-        assertThat(graph.getTask("task_generate_report").upstreamPlanId()).isEqualTo("plan_reporting");
+        // Verify upstream plans for each task through edges
+        assertThat(graph.getUpstreamPlan("task_fetch_data")).isEqualTo("plan_data_collection");
+        assertThat(graph.getUpstreamPlan("task_process_data")).isEqualTo("plan_data_collection");
+        assertThat(graph.getUpstreamPlan("task_analyze_data")).isEqualTo("plan_analysis");
+        assertThat(graph.getUpstreamPlan("task_generate_report")).isEqualTo("plan_reporting");
     }
     
     @Test
-    void testTaskToPlanEdgesPopulateUpstreamTaskIds() throws Exception {
+    void testTaskToPlanEdgesAreReflectedInPlanUpstreamTasks() throws Exception {
         // Given
         Path specDir = createGraphWithTaskToPlanEdges();
         
@@ -198,20 +198,20 @@ class GraphVizDotParserTest {
         assertThat(graph.planCount()).isEqualTo(3);
         assertThat(graph.taskCount()).isEqualTo(4);
         
-        // Verify that plans have correct upstream task IDs
+        // Verify that plans have correct upstream tasks via TASK->PLAN edges
         var plan1 = graph.getPlan("plan_data_processing");
         assertThat(plan1).isNotNull();
-        assertThat(plan1.upstreamTaskIds()).containsExactlyInAnyOrder("task_fetch_data", "task_validate_data");
+        assertThat(graph.getUpstreamTasks(plan1.name())).containsExactlyInAnyOrder("task_fetch_data", "task_validate_data");
         
         var plan2 = graph.getPlan("plan_reporting");
         assertThat(plan2).isNotNull();
-        assertThat(plan2.upstreamTaskIds()).containsExactlyInAnyOrder("task_process_data");
+        assertThat(graph.getUpstreamTasks(plan2.name())).containsExactlyInAnyOrder("task_process_data");
         
-        // Verify that tasks have correct upstream plan IDs
-        assertThat(graph.getTask("task_fetch_data").upstreamPlanId()).isEqualTo("plan_data_collection");
-        assertThat(graph.getTask("task_validate_data").upstreamPlanId()).isEqualTo("plan_data_collection");
-        assertThat(graph.getTask("task_process_data").upstreamPlanId()).isEqualTo("plan_data_processing");
-        assertThat(graph.getTask("task_generate_report").upstreamPlanId()).isEqualTo("plan_reporting");
+        // Verify that tasks have correct upstream plans via PLAN->TASK edges
+        assertThat(graph.getUpstreamPlan("task_fetch_data")).isEqualTo("plan_data_collection");
+        assertThat(graph.getUpstreamPlan("task_validate_data")).isEqualTo("plan_data_collection");
+        assertThat(graph.getUpstreamPlan("task_process_data")).isEqualTo("plan_data_processing");
+        assertThat(graph.getUpstreamPlan("task_generate_report")).isEqualTo("plan_reporting");
     }
     
     @Test

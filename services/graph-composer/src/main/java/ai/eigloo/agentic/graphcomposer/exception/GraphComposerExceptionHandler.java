@@ -133,7 +133,7 @@ public class GraphComposerExceptionHandler {
 
 
     /**
-     * Handle legacy tenant access exceptions from GraphService.
+     * Handle tenant access exceptions from GraphService.
      */
     @ExceptionHandler(GraphService.TenantAccessException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)

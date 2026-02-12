@@ -453,19 +453,18 @@ const GraphCanvas: React.FC<GraphCanvasProps> = ({
       });
     }
 
-    // Convert relationships to edges
-    if (graph.planToTasks) {
-      Object.entries(graph.planToTasks).forEach(([planId, taskIds]: [string, any]) => {
-        if (Array.isArray(taskIds)) {
-          taskIds.forEach((taskId: string) => {
-            newEdges.push({
-              id: generateEdgeId(planId, taskId),
-              fromNodeId: planId,
-              toNodeId: taskId,
-              selected: false
-            });
-          });
+    // Convert canonical edges to canvas edges.
+    if (Array.isArray(graph.edges)) {
+      graph.edges.forEach((edge: any) => {
+        if (!edge?.from || !edge?.to) {
+          return;
         }
+        newEdges.push({
+          id: generateEdgeId(edge.from, edge.to),
+          fromNodeId: edge.from,
+          toNodeId: edge.to,
+          selected: false
+        });
       });
     }
 

@@ -26,16 +26,6 @@ public interface TaskRepository extends JpaRepository<TaskEntity, String> {
     Optional<TaskEntity> findByAgentGraphIdAndName(String graphId, String name);
 
     /**
-     * Find all tasks for a specific upstream plan.
-     */
-    List<TaskEntity> findByUpstreamPlanId(String planId);
-
-    /**
-     * Find all tasks for a specific downstream plan.
-     */
-    List<TaskEntity> findByDownstreamPlanId(String planId);
-
-    /**
      * Delete all tasks for a specific agent graph.
      */
     void deleteByAgentGraphId(String graphId);
@@ -63,15 +53,4 @@ public interface TaskRepository extends JpaRepository<TaskEntity, String> {
     @Query("SELECT t FROM TaskEntity t WHERE t.id IN :taskIds")
     List<TaskEntity> findByIdsWithFiles(@Param("taskIds") List<String> taskIds);
 
-    /**
-     * Find tasks by upstream plan. Files and relationships are eagerly loaded via entity configuration.
-     */
-    @Query("SELECT t FROM TaskEntity t WHERE t.upstreamPlan.id = :planId")
-    List<TaskEntity> findByUpstreamPlanIdWithFiles(@Param("planId") String planId);
-
-    /**
-     * Find tasks by downstream plan. Files and relationships are eagerly loaded via entity configuration.
-     */
-    @Query("SELECT t FROM TaskEntity t WHERE t.downstreamPlan.id = :planId")
-    List<TaskEntity> findByDownstreamPlanIdWithFiles(@Param("planId") String planId);
 }

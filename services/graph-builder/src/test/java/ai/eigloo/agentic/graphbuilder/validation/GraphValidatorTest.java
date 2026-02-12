@@ -1,6 +1,8 @@
 package ai.eigloo.agentic.graphbuilder.validation;
 
 import ai.eigloo.agentic.graph.model.AgentGraph;
+import ai.eigloo.agentic.graph.model.GraphEdge;
+import ai.eigloo.agentic.graph.model.GraphNodeType;
 import ai.eigloo.agentic.graph.model.Plan;
 import ai.eigloo.agentic.graph.model.Task;
 import ai.eigloo.agentic.graph.exception.GraphValidationException;
@@ -13,9 +15,10 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
@@ -144,7 +147,7 @@ class GraphValidatorTest {
         // When & Then
         assertThatThrownBy(() -> GraphValidator.validate(graph))
             .isInstanceOf(GraphValidationException.class)
-            .hasMessageContaining("upstream plan mismatch");
+            .hasMessageContaining("multiple upstream plans");
     }
     
     @Test
@@ -178,7 +181,7 @@ class GraphValidatorTest {
         // When & Then
         assertThatThrownBy(() -> GraphValidator.validate(graph))
             .isInstanceOf(GraphValidationException.class)
-            .hasMessageContaining("Task invalid.task.name has no upstream plan");
+            .hasMessageContaining("Invalid plan name");
     }
     
     @Test
@@ -215,191 +218,174 @@ class GraphValidatorTest {
     private AgentGraph createValidGraph() {
         Map<String, Plan> plans = new HashMap<>();
         Map<String, Task> tasks = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
         Plan plan1 = Plan.of("plan1", testPlanPath);
-        Task task1 = Task.of("task1", testTaskPath, "plan1");
+        Task task1 = Task.of("task1", testTaskPath);
         
         plans.put("plan1", plan1);
         tasks.put("task1", task1);
         
-        // plan1 feeds into task1
-        planToTasks.put("plan1", Set.of("task1"));
-        // task1 has plan1 as upstream
-        taskToPlan.put("task1", "plan1");
+        edges.add(edge("plan1", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
         
-        return AgentGraph.of("ValidGraph", plans, tasks, planToTasks, taskToPlan);
+        return AgentGraph.of("ValidGraph", plans, tasks, edges);
     }
     
     private AgentGraph createGraphWithDuplicateNames() {
         Map<String, Plan> plans = new HashMap<>();
         Map<String, Task> tasks = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
         Plan plan1 = Plan.of("duplicate_name", testPlanPath);
         Plan plan2 = Plan.of("duplicate_name", testPlanPath);
-        Task task1 = Task.of("task1", testTaskPath, "plan1");
+        Task task1 = Task.of("task1", testTaskPath);
         
         plans.put("plan1", plan1);
         plans.put("plan2", plan2);
         tasks.put("task1", task1);
         
-        planToTasks.put("plan1", Set.of("task1"));
-        taskToPlan.put("task1", "plan1");
+        edges.add(edge("plan1", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
         
-        return AgentGraph.of("DuplicateNamesGraph", plans, tasks, planToTasks, taskToPlan);
+        return AgentGraph.of("DuplicateNamesGraph", plans, tasks, edges);
     }
     
     private AgentGraph createGraphWithDanglingEdges() {
         Map<String, Plan> plans = new HashMap<>();
         Map<String, Task> tasks = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
         Plan plan1 = Plan.of("plan1", testPlanPath);
-        Task task1 = Task.of("task1", testTaskPath, "plan1");
-        Task task2 = Task.of("task2", testTaskPath, "nonexistent_plan");
+        Task task1 = Task.of("task1", testTaskPath);
+        Task task2 = Task.of("task2", testTaskPath);
         
         plans.put("plan1", plan1);
         tasks.put("task1", task1);
         tasks.put("task2", task2);
         
-        planToTasks.put("plan1", Set.of("task1", "nonexistent_task"));
-        taskToPlan.put("task1", "plan1");
-        taskToPlan.put("task2", "nonexistent_plan");
+        edges.add(edge("plan1", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
+        edges.add(edge("plan1", GraphNodeType.PLAN, "nonexistent_task", GraphNodeType.TASK));
+        edges.add(edge("nonexistent_plan", GraphNodeType.PLAN, "task2", GraphNodeType.TASK));
         
-        return AgentGraph.of("DanglingEdgesGraph", plans, tasks, planToTasks, taskToPlan);
+        return AgentGraph.of("DanglingEdgesGraph", plans, tasks, edges);
     }
     
     private AgentGraph createGraphWithTaskMultiplePlans() {
         Map<String, Plan> plans = new HashMap<>();
         Map<String, Task> tasks = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
         Plan plan1 = Plan.of("plan1", testPlanPath);
         Plan plan2 = Plan.of("plan2", testPlanPath);
-        Task task1 = Task.of("task1", testTaskPath, "plan1"); // Task says plan1
+        Task task1 = Task.of("task1", testTaskPath);
         
         plans.put("plan1", plan1);
         plans.put("plan2", plan2);
         tasks.put("task1", task1);
         
-        planToTasks.put("plan1", Set.of("task1"));
-        planToTasks.put("plan2", Set.of("task1")); // But graph says plan2
-        taskToPlan.put("task1", "plan2"); // And taskToPlan says plan2
+        edges.add(edge("plan1", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
+        edges.add(edge("plan2", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
         
-        return AgentGraph.of("TaskMultiplePlansGraph", plans, tasks, planToTasks, taskToPlan);
+        return AgentGraph.of("TaskMultiplePlansGraph", plans, tasks, edges);
     }
     
     private AgentGraph createGraphWithOrphanedNodes() {
         Map<String, Plan> plans = new HashMap<>();
         Map<String, Task> tasks = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
         Plan plan1 = Plan.of("plan1", testPlanPath);
-        Plan plan2 = Plan.of("orphaned_plan", testPlanPath); // Orphaned
-        Task task1 = Task.of("task1", testTaskPath, "plan1");
-        Task task2 = Task.of("orphaned_task", testTaskPath, "plan1"); // Orphaned
+        Plan plan2 = Plan.of("orphaned_plan", testPlanPath);
+        Task task1 = Task.of("task1", testTaskPath);
+        Task task2 = Task.of("orphaned_task", testTaskPath);
         
         plans.put("plan1", plan1);
         plans.put("orphaned_plan", plan2);
         tasks.put("task1", task1);
         tasks.put("orphaned_task", task2);
         
-        planToTasks.put("plan1", Set.of("task1"));
-        taskToPlan.put("task1", "plan1");
-        // Note: orphaned_plan and orphaned_task have no connections
+        edges.add(edge("plan1", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
         
-        return AgentGraph.of("OrphanedNodesGraph", plans, tasks, planToTasks, taskToPlan);
+        return AgentGraph.of("OrphanedNodesGraph", plans, tasks, edges);
     }
     
     private AgentGraph createGraphWithInvalidNodeNames() {
         Map<String, Plan> plans = new HashMap<>();
         Map<String, Task> tasks = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
-        Plan plan1 = Plan.of("invalid-plan-name", testPlanPath); // Invalid name with hyphen
-        Task task1 = Task.of("invalid.task.name", testTaskPath, "plan1"); // Invalid name with dots
+        Plan plan1 = Plan.of("invalid-plan-name", testPlanPath);
+        Task task1 = Task.of("invalid.task.name", testTaskPath);
         
-        plans.put("plan1", plan1);
-        tasks.put("task1", task1);
+        plans.put("invalid-plan-name", plan1);
+        tasks.put("invalid.task.name", task1);
         
-        planToTasks.put("plan1", Set.of("task1"));
-        taskToPlan.put("task1", "plan1");
+        edges.add(edge("invalid-plan-name", GraphNodeType.PLAN, "invalid.task.name", GraphNodeType.TASK));
         
-        return AgentGraph.of("InvalidNodeNamesGraph", plans, tasks, planToTasks, taskToPlan);
+        return AgentGraph.of("InvalidNodeNamesGraph", plans, tasks, edges);
     }
     
     private AgentGraph createGraphWithCycles() {
         Map<String, Plan> plans = new HashMap<>();
         Map<String, Task> tasks = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
         Plan plan1 = Plan.of("plan1", testPlanPath);
         Plan plan2 = Plan.of("plan2", testPlanPath);
-        Task task1 = Task.of("task1", testTaskPath, "plan2"); // task1's upstream is plan2
-        Task task2 = Task.of("task2", testTaskPath, "plan1"); // task2's upstream is plan1
+        Task task1 = Task.of("task1", testTaskPath);
+        Task task2 = Task.of("task2", testTaskPath);
         
         plans.put("plan1", plan1);
         plans.put("plan2", plan2);
         tasks.put("task1", task1);
         tasks.put("task2", task2);
         
-        // Create a cycle: plan1 -> task1 -> plan2 -> task2 -> plan1
-        planToTasks.put("plan1", Set.of("task1"));
-        planToTasks.put("plan2", Set.of("task2"));
-        taskToPlan.put("task1", "plan2"); // task1's upstream is plan2
-        taskToPlan.put("task2", "plan1"); // task2's upstream is plan1
+        // Create a cycle: plan1 -> task2 -> plan2 -> task1 -> plan1
+        edges.add(edge("plan1", GraphNodeType.PLAN, "task2", GraphNodeType.TASK));
+        edges.add(edge("task2", GraphNodeType.TASK, "plan2", GraphNodeType.PLAN));
+        edges.add(edge("plan2", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
+        edges.add(edge("task1", GraphNodeType.TASK, "plan1", GraphNodeType.PLAN));
         
-        return AgentGraph.of("CyclesGraph", plans, tasks, planToTasks, taskToPlan);
+        return AgentGraph.of("CyclesGraph", plans, tasks, edges);
     }
     
     private AgentGraph createGraphWithPlanNotFeedingIntoTasks() {
         Map<String, Plan> plans = new HashMap<>();
         Map<String, Task> tasks = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
         Plan plan1 = Plan.of("plan1", testPlanPath);
-        Plan plan2 = Plan.of("plan2", testPlanPath); // This plan doesn't feed into any tasks
-        Task task1 = Task.of("task1", testTaskPath, "plan1");
+        Plan plan2 = Plan.of("plan2", testPlanPath);
+        Task task1 = Task.of("task1", testTaskPath);
         
         plans.put("plan1", plan1);
         plans.put("plan2", plan2);
         tasks.put("task1", task1);
         
-        planToTasks.put("plan1", Set.of("task1"));
-        planToTasks.put("plan2", Set.of()); // plan2 feeds into no tasks
-        taskToPlan.put("task1", "plan1");
+        edges.add(edge("plan1", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
         
-        return AgentGraph.of("PlanNotFeedingIntoTasksGraph", plans, tasks, planToTasks, taskToPlan);
+        return AgentGraph.of("PlanNotFeedingIntoTasksGraph", plans, tasks, edges);
     }
     
     private AgentGraph createGraphWithTaskNoUpstreamPlan() {
         Map<String, Plan> plans = new HashMap<>();
         Map<String, Task> tasks = new HashMap<>();
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        Map<String, String> taskToPlan = new HashMap<>();
+        List<GraphEdge> edges = new ArrayList<>();
         
         Plan plan1 = Plan.of("plan1", testPlanPath);
-        Task task1 = Task.of("task1", testTaskPath, "plan1");
-        Task task2 = Task.of("task2", testTaskPath, "plan1"); // This task has no upstream plan
+        Task task1 = Task.of("task1", testTaskPath);
+        Task task2 = Task.of("task2", testTaskPath);
         
         plans.put("plan1", plan1);
         tasks.put("task1", task1);
         tasks.put("task2", task2);
         
-        planToTasks.put("plan1", Set.of("task1"));
-        taskToPlan.put("task1", "plan1");
-        // task2 is not in taskToPlan, so it has no upstream plan
+        edges.add(edge("plan1", GraphNodeType.PLAN, "task1", GraphNodeType.TASK));
         
-        return AgentGraph.of("TaskNoUpstreamPlanGraph", plans, tasks, planToTasks, taskToPlan);
+        return AgentGraph.of("TaskNoUpstreamPlanGraph", plans, tasks, edges);
+    }
+
+    private GraphEdge edge(String from, GraphNodeType fromType, String to, GraphNodeType toType) {
+        return new GraphEdge(from, fromType, to, toType);
     }
     
     private Path createValidDirectoryStructure() throws Exception {

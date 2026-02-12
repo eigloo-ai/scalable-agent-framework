@@ -120,7 +120,6 @@ def task(task_input: TaskInput) -> TaskResult:
             {
                 "name": "PlanA",
                 "label": "Plan A",
-                "upstreamTaskIds": [],
                 "files": [
                     {"name": "plan.py", "contents": plan_a_py},
                     {"name": "requirements.txt", "contents": "# Dependencies for PlanA\n"},
@@ -129,7 +128,6 @@ def task(task_input: TaskInput) -> TaskResult:
             {
                 "name": "PlanB",
                 "label": "Plan B",
-                "upstreamTaskIds": ["Task1A"],
                 "files": [
                     {"name": "plan.py", "contents": plan_b_py},
                     {"name": "requirements.txt", "contents": "# Dependencies for PlanB\n"},
@@ -140,7 +138,6 @@ def task(task_input: TaskInput) -> TaskResult:
             {
                 "name": "Task1A",
                 "label": "Task 1A",
-                "upstreamPlanId": "PlanA",
                 "files": [
                     {"name": "task.py", "contents": task_template.format(fallback_id="Task1A-result")},
                     {"name": "requirements.txt", "contents": "# Dependencies for Task1A\n"},
@@ -149,7 +146,6 @@ def task(task_input: TaskInput) -> TaskResult:
             {
                 "name": "Task1B",
                 "label": "Task 1B",
-                "upstreamPlanId": "PlanA",
                 "files": [
                     {"name": "task.py", "contents": task_template.format(fallback_id="Task1B-result")},
                     {"name": "requirements.txt", "contents": "# Dependencies for Task1B\n"},
@@ -158,23 +154,18 @@ def task(task_input: TaskInput) -> TaskResult:
             {
                 "name": "Task2",
                 "label": "Task 2",
-                "upstreamPlanId": "PlanB",
                 "files": [
                     {"name": "task.py", "contents": task_template.format(fallback_id="Task2-result")},
                     {"name": "requirements.txt", "contents": "# Dependencies for Task2\n"},
                 ],
             },
         ],
-        "planToTasks": {
-            "PlanA": ["Task1A", "Task1B"],
-            "PlanB": ["Task2"],
-        },
-        # taskToPlan is used by current graph-composer validation as Task -> upstream Plan.
-        "taskToPlan": {
-            "Task1A": "PlanA",
-            "Task1B": "PlanA",
-            "Task2": "PlanB",
-        },
+        "edges": [
+            {"from": "PlanA", "fromType": "PLAN", "to": "Task1A", "toType": "TASK"},
+            {"from": "PlanA", "fromType": "PLAN", "to": "Task1B", "toType": "TASK"},
+            {"from": "Task1A", "fromType": "TASK", "to": "PlanB", "toType": "PLAN"},
+            {"from": "PlanB", "fromType": "PLAN", "to": "Task2", "toType": "TASK"},
+        ],
     }
 
 

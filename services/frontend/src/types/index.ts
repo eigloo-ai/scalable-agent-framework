@@ -9,15 +9,22 @@ export interface ExecutorFile {
 export interface PlanDto {
   name: string;
   label: string;
-  upstreamTaskIds: string[];
   files: ExecutorFile[];
 }
 
 export interface TaskDto {
   name: string;
   label: string;
-  upstreamPlanId: string;
   files: ExecutorFile[];
+}
+
+export type GraphNodeType = 'PLAN' | 'TASK';
+
+export interface GraphEdgeDto {
+  from: string;
+  fromType: GraphNodeType;
+  to: string;
+  toType: GraphNodeType;
 }
 
 export type GraphStatus = 'NEW' | 'ACTIVE' | 'ARCHIVED';
@@ -30,8 +37,7 @@ export interface AgentGraphDto {
   status: GraphStatus;
   plans: PlanDto[];
   tasks: TaskDto[];
-  planToTasks: Record<string, string[]>;
-  taskToPlan: Record<string, string>;
+  edges: GraphEdgeDto[];
   createdAt: string;
   updatedAt: string;
 }

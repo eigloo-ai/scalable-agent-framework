@@ -201,7 +201,7 @@ class GraphServiceImplTest {
     }
 
     @Test
-    void updateGraph_ShouldSetDownstreamPlan_FromPlanUpstreamTaskIds() {
+    void updateGraph_ShouldSetDownstreamPlan_FromCanonicalEdges() {
         // Given
         String graphId = "test-graph-id";
         ValidationResult validationResult = new ValidationResult(true, List.of(), List.of());
@@ -209,31 +209,26 @@ class GraphServiceImplTest {
         PlanDto planA = new PlanDto();
         planA.setName("PlanA");
         planA.setLabel("Plan A");
-        planA.setUpstreamTaskIds(Set.of());
         planA.setFiles(List.of());
 
         PlanDto planB = new PlanDto();
         planB.setName("PlanB");
         planB.setLabel("Plan B");
-        planB.setUpstreamTaskIds(Set.of("Task1A"));
         planB.setFiles(List.of());
 
         TaskDto task1A = new TaskDto();
         task1A.setName("Task1A");
         task1A.setLabel("Task 1A");
-        task1A.setUpstreamPlanId("PlanA");
         task1A.setFiles(List.of());
 
         TaskDto task1B = new TaskDto();
         task1B.setName("Task1B");
         task1B.setLabel("Task 1B");
-        task1B.setUpstreamPlanId("PlanA");
         task1B.setFiles(List.of());
 
         TaskDto task2 = new TaskDto();
         task2.setName("Task2");
         task2.setLabel("Task 2");
-        task2.setUpstreamPlanId("PlanB");
         task2.setFiles(List.of());
 
         AgentGraphDto updateDto = new AgentGraphDto();
@@ -243,14 +238,11 @@ class GraphServiceImplTest {
         updateDto.setStatus(GraphStatus.NEW);
         updateDto.setPlans(List.of(planA, planB));
         updateDto.setTasks(List.of(task1A, task1B, task2));
-        updateDto.setPlanToTasks(Map.of(
-                "PlanA", Set.of("Task1A", "Task1B"),
-                "PlanB", Set.of("Task2")
-        ));
-        updateDto.setTaskToPlan(Map.of(
-                "Task1A", "PlanA",
-                "Task1B", "PlanA",
-                "Task2", "PlanB"
+        updateDto.setEdges(List.of(
+                new GraphEdgeDto("PlanA", GraphNodeType.PLAN, "Task1A", GraphNodeType.TASK),
+                new GraphEdgeDto("PlanA", GraphNodeType.PLAN, "Task1B", GraphNodeType.TASK),
+                new GraphEdgeDto("Task1A", GraphNodeType.TASK, "PlanB", GraphNodeType.PLAN),
+                new GraphEdgeDto("PlanB", GraphNodeType.PLAN, "Task2", GraphNodeType.TASK)
         ));
 
         when(agentGraphRepository.findByIdAndTenantId(graphId, updateDto.getTenantId()))
@@ -271,14 +263,16 @@ class GraphServiceImplTest {
         assertEquals(3, savedGraph.getTasks().size());
 
         Map<String, String> downstreamByTask = new java.util.HashMap<>();
-        savedGraph.getTasks().forEach(task -> downstreamByTask.put(
-                task.getName(),
-                task.getDownstreamPlan() != null ? task.getDownstreamPlan().getName() : ""
-        ));
+        savedGraph.getEdges().forEach(edge -> {
+            if (edge.getFromNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.TASK
+                    && edge.getToNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.PLAN) {
+                downstreamByTask.putIfAbsent(edge.getFromNodeName(), edge.getToNodeName());
+            }
+        });
 
         assertEquals("PlanB", downstreamByTask.get("Task1A"));
-        assertEquals("", downstreamByTask.get("Task1B"));
-        assertEquals("", downstreamByTask.get("Task2"));
+        assertFalse(downstreamByTask.containsKey("Task1B"));
+        assertFalse(downstreamByTask.containsKey("Task2"));
     }
 
     @Test

@@ -65,7 +65,6 @@ describe('GraphCanvas Integration Tests', () => {
       { 
         name: 'plan1', 
         label: 'Plan 1', 
-        upstreamTaskIds: ['task1'],
         position: { x: 200, y: 100 }
       }
     ],
@@ -76,12 +75,9 @@ describe('GraphCanvas Integration Tests', () => {
         position: { x: 100, y: 100 }
       }
     ],
-    planToTasks: {
-      'plan1': ['task2']
-    },
-    taskToPlan: {
-      'task1': 'plan1'
-    }
+    edges: [
+      { from: 'plan1', fromType: 'PLAN', to: 'task1', toType: 'TASK' }
+    ]
   };
 
   beforeEach(() => {
@@ -328,7 +324,6 @@ describe('GraphCanvas Integration Tests', () => {
       plans: Array.from({ length: 100 }, (_, i) => ({
         name: `plan${i}`,
         label: `Plan ${i}`,
-        upstreamTaskIds: [],
         position: { x: (i % 10) * 100, y: Math.floor(i / 10) * 100 }
       })),
       tasks: Array.from({ length: 100 }, (_, i) => ({

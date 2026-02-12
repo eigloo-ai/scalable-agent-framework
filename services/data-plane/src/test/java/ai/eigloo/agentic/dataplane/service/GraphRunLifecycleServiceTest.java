@@ -5,6 +5,7 @@ import ai.eigloo.agentic.dataplane.entity.TaskExecutionEntity;
 import ai.eigloo.agentic.dataplane.repository.PlanExecutionRepository;
 import ai.eigloo.agentic.dataplane.repository.TaskExecutionRepository;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
+import ai.eigloo.agentic.graph.entity.GraphEdgeEntity;
 import ai.eigloo.agentic.graph.entity.GraphRunEntity;
 import ai.eigloo.agentic.graph.entity.GraphRunStatus;
 import ai.eigloo.agentic.graph.entity.GraphStatus;
@@ -111,9 +112,37 @@ class GraphRunLifecycleServiceTest {
         PlanEntity planB = new PlanEntity("plan-b", "PlanB", "Plan B", "plan.py", graph);
         graph.addPlan(planA);
         graph.addPlan(planB);
-        graph.addTask(new TaskEntity("task-1a", "Task1A", "Task1A", "task.py", graph, planA, planB));
-        graph.addTask(new TaskEntity("task-1b", "Task1B", "Task1B", "task.py", graph, planA));
-        graph.addTask(new TaskEntity("task-2", "Task2", "Task2", "task.py", graph, planB));
+        graph.addTask(new TaskEntity("task-1a", "Task1A", "Task1A", "task.py", graph));
+        graph.addTask(new TaskEntity("task-1b", "Task1B", "Task1B", "task.py", graph));
+        graph.addTask(new TaskEntity("task-2", "Task2", "Task2", "task.py", graph));
+        graph.addEdge(new GraphEdgeEntity(
+                "edge-1",
+                graph,
+                "PlanA",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                "Task1A",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK));
+        graph.addEdge(new GraphEdgeEntity(
+                "edge-2",
+                graph,
+                "PlanA",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                "Task1B",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK));
+        graph.addEdge(new GraphEdgeEntity(
+                "edge-3",
+                graph,
+                "Task1A",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK,
+                "PlanB",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN));
+        graph.addEdge(new GraphEdgeEntity(
+                "edge-4",
+                graph,
+                "PlanB",
+                ai.eigloo.agentic.graph.model.GraphNodeType.PLAN,
+                "Task2",
+                ai.eigloo.agentic.graph.model.GraphNodeType.TASK));
         when(agentGraphRepository.findByIdAndTenantIdWithAllRelations("graph-a", "tenant-a"))
                 .thenReturn(Optional.of(graph));
 

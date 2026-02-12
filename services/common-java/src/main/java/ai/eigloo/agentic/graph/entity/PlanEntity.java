@@ -42,14 +42,6 @@ public class PlanEntity {
     @JoinColumn(name = "graph_id", nullable = false)
     private AgentGraphEntity agentGraph;
 
-    // Relationships to tasks
-    @OneToMany(mappedBy = "upstreamPlan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<TaskEntity> downstreamTasks = new ArrayList<>();
-
-    // Upstream tasks (tasks that feed into this plan)
-    @OneToMany(mappedBy = "downstreamPlan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<TaskEntity> upstreamTasks = new ArrayList<>();
-
     // Relationship to ExecutorFiles
     @OneToMany(mappedBy = "plan", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @Fetch(FetchMode.SUBSELECT)
@@ -106,22 +98,6 @@ public class PlanEntity {
 
     public void setAgentGraph(AgentGraphEntity agentGraph) {
         this.agentGraph = agentGraph;
-    }
-
-    public List<TaskEntity> getDownstreamTasks() {
-        return downstreamTasks;
-    }
-
-    public void setDownstreamTasks(List<TaskEntity> downstreamTasks) {
-        this.downstreamTasks = downstreamTasks != null ? downstreamTasks : new ArrayList<>();
-    }
-
-    public List<TaskEntity> getUpstreamTasks() {
-        return upstreamTasks;
-    }
-
-    public void setUpstreamTasks(List<TaskEntity> upstreamTasks) {
-        this.upstreamTasks = upstreamTasks != null ? upstreamTasks : new ArrayList<>();
     }
 
     public List<ExecutorFileEntity> getFiles() {

@@ -31,7 +31,6 @@ class ValidationServiceImplTest {
         testPlan = new PlanDto();
         testPlan.setName("test_plan");
         testPlan.setLabel("Test Plan");
-        testPlan.setUpstreamTaskIds(Set.of("test_task"));
         testPlan.setFiles(List.of(executorFile("plan.py", """
                 from agentic_common.pb import PlanResult
                 
@@ -42,7 +41,6 @@ class ValidationServiceImplTest {
         testTask = new TaskDto();
         testTask.setName("test_task");
         testTask.setLabel("Test Task");
-        testTask.setUpstreamPlanId("test_plan");
         testTask.setFiles(List.of(executorFile("task.py", """
                 from agentic_common.pb import TaskResult
                 
@@ -55,8 +53,10 @@ class ValidationServiceImplTest {
         testGraph.setTenantId("test-tenant");
         testGraph.setPlans(List.of(testPlan));
         testGraph.setTasks(List.of(testTask));
-        testGraph.setPlanToTasks(Map.of("test_plan", Set.of("test_task")));
-        testGraph.setTaskToPlan(Map.of("test_task", "test_plan"));
+        testGraph.setEdges(List.of(
+                new GraphEdgeDto("test_plan", GraphNodeType.PLAN, "test_task", GraphNodeType.TASK),
+                new GraphEdgeDto("test_task", GraphNodeType.TASK, "test_plan", GraphNodeType.PLAN)
+        ));
     }
 
     @Test
@@ -196,27 +196,31 @@ class ValidationServiceImplTest {
     @Test
     void validateConnectionConstraints_ShouldReturnInvalid_WhenPlanConnectsToNonTask() {
         // Given
-        testGraph.setPlanToTasks(Map.of("test_plan", Set.of("non_existent_task")));
+        testGraph.setEdges(List.of(
+                new GraphEdgeDto("test_plan", GraphNodeType.PLAN, "non_existent_task", GraphNodeType.TASK)
+        ));
 
         // When
         ValidationResult result = validationService.validateConnectionConstraints(testGraph);
 
         // Then
         assertFalse(result.isValid());
-        assertTrue(result.getErrors().contains("Plan 'test_plan' is connected to 'non_existent_task' which is not a task"));
+        assertTrue(result.getErrors().contains("Task 'non_existent_task' referenced in edges but not found in graph"));
     }
 
     @Test
     void validateConnectionConstraints_ShouldReturnInvalid_WhenTaskConnectsToNonPlan() {
         // Given
-        testGraph.setTaskToPlan(Map.of("test_task", "non_existent_plan"));
+        testGraph.setEdges(List.of(
+                new GraphEdgeDto("test_task", GraphNodeType.TASK, "non_existent_plan", GraphNodeType.PLAN)
+        ));
 
         // When
         ValidationResult result = validationService.validateConnectionConstraints(testGraph);
 
         // Then
         assertFalse(result.isValid());
-        assertTrue(result.getErrors().contains("Task 'test_task' is connected to 'non_existent_plan' which is not a plan"));
+        assertTrue(result.getErrors().contains("Plan 'non_existent_plan' referenced in edges but not found in graph"));
     }
 
     @Test
@@ -232,7 +236,7 @@ class ValidationServiceImplTest {
     @Test
     void validateTaskUpstreamConstraints_ShouldReturnInvalid_WhenTaskHasNoUpstreamPlan() {
         // Given
-        testGraph.setTaskToPlan(Map.of());
+        testGraph.setEdges(List.of());
 
         // When
         ValidationResult result = validationService.validateTaskUpstreamConstraints(testGraph);
@@ -255,7 +259,10 @@ class ValidationServiceImplTest {
     @Test
     void validatePlanUpstreamConstraints_ShouldReturnInvalid_WhenPlanReferencesNonExistentTask() {
         // Given
-        testPlan.setUpstreamTaskIds(Set.of("non_existent_task"));
+        testGraph.setEdges(List.of(
+                new GraphEdgeDto("test_plan", GraphNodeType.PLAN, "test_task", GraphNodeType.TASK),
+                new GraphEdgeDto("non_existent_task", GraphNodeType.TASK, "test_plan", GraphNodeType.PLAN)
+        ));
 
         // When
         ValidationResult result = validationService.validatePlanUpstreamConstraints(testGraph);

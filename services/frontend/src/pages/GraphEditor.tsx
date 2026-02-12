@@ -7,7 +7,28 @@ import CodeEditor from '../components/editor/CodeEditor';
 import { useAppContext } from '../hooks/useAppContext';
 import { graphApi } from '../api/client';
 import { createDefaultFilesForPlan, createDefaultFilesForTask } from '../utils/templateGenerator';
-import type { AgentGraphDto } from '../types';
+import type { AgentGraphDto, GraphEdgeDto } from '../types';
+
+const edgeKey = (edge: GraphEdgeDto): string =>
+  `${edge.from}|${edge.fromType}|${edge.to}|${edge.toType}`;
+
+const dedupeEdges = (edges: GraphEdgeDto[]): GraphEdgeDto[] => {
+  const deduped = new Map<string, GraphEdgeDto>();
+  edges.forEach(edge => {
+    if (!edge?.from || !edge?.to || !edge?.fromType || !edge?.toType) {
+      return;
+    }
+    deduped.set(edgeKey(edge), edge);
+  });
+  return Array.from(deduped.values());
+};
+
+const canonicalizeGraphEdges = (graph: AgentGraphDto): AgentGraphDto => {
+  return {
+    ...graph,
+    edges: dedupeEdges(graph.edges || [])
+  };
+};
 
 const GraphEditor: React.FC = () => {
   const { state, dispatch } = useAppContext();
@@ -46,12 +67,12 @@ const GraphEditor: React.FC = () => {
       dispatch({ type: 'CLEAR_ERROR' });
 
       // Validate the graph before saving
-      const validatedGraph: AgentGraphDto = {
+      const validatedGraph = canonicalizeGraphEdges({
         ...currentGraph,
         plans: [...(currentGraph.plans || [])],
         tasks: [...(currentGraph.tasks || [])],
-        planToTasks: { ...currentGraph.planToTasks }
-      };
+        edges: [...(currentGraph.edges || [])]
+      });
       console.log('Validated graph:', validatedGraph);
       
       // Use POST for new graphs, PUT for existing graphs
@@ -99,8 +120,7 @@ const GraphEditor: React.FC = () => {
       ...currentGraph,
       plans: [...(currentGraph.plans || [])],
       tasks: [...(currentGraph.tasks || [])],
-      planToTasks: { ...currentGraph.planToTasks },
-      taskToPlan: { ...currentGraph.taskToPlan }
+      edges: [...(currentGraph.edges || [])]
     };
     
     if (node.type === 'plan') {
@@ -111,7 +131,6 @@ const GraphEditor: React.FC = () => {
       const newPlan = {
         name: node.label,
         label: node.label,
-        upstreamTaskIds: [],
         files: templateFiles
       };
       updatedGraph.plans.push(newPlan);
@@ -124,7 +143,6 @@ const GraphEditor: React.FC = () => {
       const newTask = {
         name: node.label,
         label: node.label,
-        upstreamPlanId: '',
         files: templateFiles
       };
       updatedGraph.tasks.push(newTask);
@@ -146,8 +164,7 @@ const GraphEditor: React.FC = () => {
       ...currentGraph,
       plans: [...(currentGraph.plans || [])],
       tasks: [...(currentGraph.tasks || [])],
-      planToTasks: { ...currentGraph.planToTasks },
-      taskToPlan: { ...currentGraph.taskToPlan }
+      edges: [...(currentGraph.edges || [])]
     };
     
     // Find the from and to nodes
@@ -161,35 +178,19 @@ const GraphEditor: React.FC = () => {
     const toIsPlan = updatedGraph.plans.some(p => p.name === edge.toNodeId);
     
     if (fromIsPlan && !toIsPlan) {
-      // Plan to Task connection
-      if (!updatedGraph.planToTasks[edge.fromNodeId]) {
-        updatedGraph.planToTasks[edge.fromNodeId] = [];
-      }
-      if (!updatedGraph.planToTasks[edge.fromNodeId].includes(edge.toNodeId)) {
-        updatedGraph.planToTasks[edge.fromNodeId].push(edge.toNodeId);
-      }
-      
-      // Update task's upstream plan
-      updatedGraph.taskToPlan[edge.toNodeId] = edge.fromNodeId;
-      
-      // Update the task object
-      updatedGraph.tasks = updatedGraph.tasks.map(task => 
-        task.name === edge.toNodeId ? { ...task, upstreamPlanId: edge.fromNodeId } : task
-      );
+      updatedGraph.edges = dedupeEdges([
+        ...updatedGraph.edges,
+        { from: edge.fromNodeId, fromType: 'PLAN', to: edge.toNodeId, toType: 'TASK' }
+      ]);
     } else if (!fromIsPlan && toIsPlan) {
-      // Task to Plan connection
-      const toPlan = updatedGraph.plans.find(p => p.name === edge.toNodeId);
-      if (toPlan && !toPlan.upstreamTaskIds.includes(edge.fromNodeId)) {
-        updatedGraph.plans = updatedGraph.plans.map(plan => 
-          plan.name === edge.toNodeId 
-            ? { ...plan, upstreamTaskIds: [...plan.upstreamTaskIds, edge.fromNodeId] }
-            : plan
-        );
-      }
+      updatedGraph.edges = dedupeEdges([
+        ...updatedGraph.edges,
+        { from: edge.fromNodeId, fromType: 'TASK', to: edge.toNodeId, toType: 'PLAN' }
+      ]);
     }
     
     // Update the current graph in state
-    dispatch({ type: 'SET_CURRENT_GRAPH', payload: updatedGraph });
+    dispatch({ type: 'SET_CURRENT_GRAPH', payload: canonicalizeGraphEdges(updatedGraph) });
   }, [currentGraph, dispatch]);
 
   // Handle node selection
@@ -209,41 +210,20 @@ const GraphEditor: React.FC = () => {
       ...currentGraph,
       plans: [...(currentGraph.plans || [])],
       tasks: [...(currentGraph.tasks || [])],
-      planToTasks: { ...currentGraph.planToTasks },
-      taskToPlan: { ...currentGraph.taskToPlan }
+      edges: [...(currentGraph.edges || [])]
     };
     
     // Remove the node from plans or tasks
     updatedGraph.plans = updatedGraph.plans.filter(plan => plan.name !== nodeId);
     updatedGraph.tasks = updatedGraph.tasks.filter(task => task.name !== nodeId);
     
-    // Clean up relationships
-    delete updatedGraph.planToTasks[nodeId];
-    delete updatedGraph.taskToPlan[nodeId];
-    
-    // Remove references to this node in other relationships
-    Object.keys(updatedGraph.planToTasks).forEach(planId => {
-      updatedGraph.planToTasks[planId] = updatedGraph.planToTasks[planId].filter(taskId => taskId !== nodeId);
-    });
-    
-    Object.keys(updatedGraph.taskToPlan).forEach(taskId => {
-      if (updatedGraph.taskToPlan[taskId] === nodeId) {
-        delete updatedGraph.taskToPlan[taskId];
-        // Also update the task object
-        updatedGraph.tasks = updatedGraph.tasks.map(task => 
-          task.name === taskId ? { ...task, upstreamPlanId: '' } : task
-        );
-      }
-    });
-    
-    // Remove from upstream task IDs in plans
-    updatedGraph.plans = updatedGraph.plans.map(plan => ({
-      ...plan,
-      upstreamTaskIds: plan.upstreamTaskIds.filter(taskId => taskId !== nodeId)
-    }));
+    // Remove edges attached to the deleted node.
+    updatedGraph.edges = updatedGraph.edges.filter(edge =>
+      edge.from !== nodeId && edge.to !== nodeId
+    );
     
     // Update the current graph in state
-    dispatch({ type: 'SET_CURRENT_GRAPH', payload: updatedGraph });
+    dispatch({ type: 'SET_CURRENT_GRAPH', payload: canonicalizeGraphEdges(updatedGraph) });
   }, [currentGraph, dispatch]);
 
   // Handle edge deletion (placeholder - will be implemented in later tasks)
@@ -265,8 +245,7 @@ const GraphEditor: React.FC = () => {
         ...currentGraph,
         plans: [...(currentGraph.plans || [])],
         tasks: [...(currentGraph.tasks || [])],
-        planToTasks: { ...currentGraph.planToTasks },
-        taskToPlan: { ...currentGraph.taskToPlan }
+        edges: [...(currentGraph.edges || [])]
       };
       
       // Check if it's a plan or task being updated
@@ -279,62 +258,21 @@ const GraphEditor: React.FC = () => {
           plan.name === nodeId ? { ...plan, name: newName, label: newName } : plan
         );
         
-        // Update planToTasks mapping (rename the key)
-        if (updatedGraph.planToTasks[nodeId]) {
-          updatedGraph.planToTasks[newName] = updatedGraph.planToTasks[nodeId];
-          delete updatedGraph.planToTasks[nodeId];
-        }
-        
-        // Update taskToPlan references
-        Object.keys(updatedGraph.taskToPlan).forEach(taskId => {
-          if (updatedGraph.taskToPlan[taskId] === nodeId) {
-            updatedGraph.taskToPlan[taskId] = newName;
-          }
-        });
-        
-        // Update task upstreamPlanId references
-        updatedGraph.tasks = updatedGraph.tasks.map((task: any) => 
-          task.upstreamPlanId === nodeId ? { ...task, upstreamPlanId: newName } : task
-        );
-        
-        // Update plan upstreamTaskIds references (plans can reference this plan as a task)
-        updatedGraph.plans = updatedGraph.plans.map((plan: any) => ({
-          ...plan,
-          upstreamTaskIds: plan.upstreamTaskIds.map((taskId: string) => 
-            taskId === nodeId ? newName : taskId
-          )
-        }));
-        
       } else if (isTask) {
         // Update task name and label
         updatedGraph.tasks = updatedGraph.tasks.map((task: any) => 
           task.name === nodeId ? { ...task, name: newName, label: newName } : task
         );
-        
-        // Update taskToPlan mapping (rename the key)
-        if (updatedGraph.taskToPlan[nodeId]) {
-          updatedGraph.taskToPlan[newName] = updatedGraph.taskToPlan[nodeId];
-          delete updatedGraph.taskToPlan[nodeId];
-        }
-        
-        // Update planToTasks references
-        Object.keys(updatedGraph.planToTasks).forEach(planId => {
-          updatedGraph.planToTasks[planId] = updatedGraph.planToTasks[planId].map((taskId: string) =>
-            taskId === nodeId ? newName : taskId
-          );
-        });
-        
-        // Update plan upstreamTaskIds references
-        updatedGraph.plans = updatedGraph.plans.map((plan: any) => ({
-          ...plan,
-          upstreamTaskIds: plan.upstreamTaskIds.map((taskId: string) => 
-            taskId === nodeId ? newName : taskId
-          )
-        }));
       }
+
+      updatedGraph.edges = updatedGraph.edges.map(edge => ({
+        ...edge,
+        from: edge.from === nodeId ? newName : edge.from,
+        to: edge.to === nodeId ? newName : edge.to
+      }));
       
       // Update the current graph in state
-      dispatch({ type: 'SET_CURRENT_GRAPH', payload: updatedGraph });
+      dispatch({ type: 'SET_CURRENT_GRAPH', payload: canonicalizeGraphEdges(updatedGraph) });
       
       console.log(`Updated node ${nodeId} to ${newName}`);
     }
@@ -354,8 +292,7 @@ const GraphEditor: React.FC = () => {
         status: 'NEW' as const,
         plans: [],
         tasks: [],
-        planToTasks: {},
-        taskToPlan: {},
+        edges: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };

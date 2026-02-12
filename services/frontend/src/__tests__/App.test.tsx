@@ -81,8 +81,7 @@ describe('App', () => {
       tenantId: 'evil-corp',
       plans: [],
       tasks: [],
-      planToTasks: {},
-      taskToPlan: {}
+      edges: []
     });
 
     render(<AppWithRouter />);
@@ -125,8 +124,7 @@ describe('App', () => {
       tenantId: 'evil-corp',
       plans: [],
       tasks: [],
-      planToTasks: {},
-      taskToPlan: {}
+      edges: []
     });
 
     render(<AppWithRouter />);
@@ -147,8 +145,7 @@ describe('App', () => {
       tenantId: 'evil-corp',
       plans: [],
       tasks: [],
-      planToTasks: {},
-      taskToPlan: {}
+      edges: []
     });
 
     render(<AppWithRouter />);
@@ -171,8 +168,7 @@ describe('App', () => {
       tenantId: 'evil-corp',
       plans: [],
       tasks: [],
-      planToTasks: {},
-      taskToPlan: {}
+      edges: []
     });
 
     render(<AppWithRouter />);
@@ -243,8 +239,7 @@ describe('App', () => {
       tenantId: 'evil-corp',
       plans: [],
       tasks: [],
-      planToTasks: {},
-      taskToPlan: {}
+      edges: []
     });
 
     render(<AppWithRouter />);
@@ -285,8 +280,7 @@ describe('App', () => {
       tenantId: 'evil-corp',
       plans: [],
       tasks: [],
-      planToTasks: {},
-      taskToPlan: {}
+      edges: []
     });
 
     render(<AppWithRouter />);

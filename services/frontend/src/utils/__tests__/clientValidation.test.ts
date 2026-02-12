@@ -89,17 +89,14 @@ describe('ClientValidation', () => {
         name: 'Test Graph',
         tenantId: 'test-tenant',
         plans: [
-          { name: 'plan1', label: 'Plan 1', upstreamTaskIds: [] }
+          { name: 'plan1', label: 'Plan 1' }
         ],
         tasks: [
           { name: 'task1', label: 'Task 1' }
         ],
-        planToTasks: {
-          'plan1': ['task1']
-        },
-        taskToPlan: {
-          'task1': 'plan1'
-        }
+        edges: [
+          { from: 'plan1', fromType: 'PLAN', to: 'task1', toType: 'TASK' }
+        ]
       };
 
       const result = ClientValidation.validateGraph(graph);
@@ -113,13 +110,12 @@ describe('ClientValidation', () => {
         name: 'Test Graph',
         tenantId: 'test-tenant',
         plans: [
-          { name: 'duplicate', label: 'Plan 1', upstreamTaskIds: [] }
+          { name: 'duplicate', label: 'Plan 1' }
         ],
         tasks: [
           { name: 'duplicate', label: 'Task 1' }
         ],
-        planToTasks: {},
-        taskToPlan: {}
+        edges: []
       };
 
       const result = ClientValidation.validateGraph(graph);
@@ -133,11 +129,10 @@ describe('ClientValidation', () => {
         name: 'Test Graph',
         tenantId: 'test-tenant',
         plans: [
-          { name: 'orphan_plan', label: 'Orphan Plan', upstreamTaskIds: [] }
+          { name: 'orphan_plan', label: 'Orphan Plan' }
         ],
         tasks: [],
-        planToTasks: {},
-        taskToPlan: {}
+        edges: []
       };
 
       const result = ClientValidation.validateGraph(graph);

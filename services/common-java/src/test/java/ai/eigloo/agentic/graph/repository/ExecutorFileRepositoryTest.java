@@ -83,8 +83,7 @@ class ExecutorFileRepositoryTest {
                 "test-task",
                 "Test Task",
                 "/tasks/test-task",
-                testGraph,
-                testPlan
+                testGraph
         );
         entityManager.persistAndFlush(testTask);
     }

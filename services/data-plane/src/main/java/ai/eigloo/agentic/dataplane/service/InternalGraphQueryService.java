@@ -1,12 +1,15 @@
 package ai.eigloo.agentic.dataplane.service;
 
 import ai.eigloo.agentic.graph.api.GraphLookupFile;
+import ai.eigloo.agentic.graph.api.GraphLookupEdge;
+import ai.eigloo.agentic.graph.api.GraphLookupNodeType;
 import ai.eigloo.agentic.graph.api.GraphLookupPlan;
 import ai.eigloo.agentic.graph.api.GraphLookupResponse;
 import ai.eigloo.agentic.graph.api.GraphLookupTask;
 import ai.eigloo.agentic.graph.api.GraphRunStateResponse;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
 import ai.eigloo.agentic.graph.entity.ExecutorFileEntity;
+import ai.eigloo.agentic.graph.entity.GraphEdgeEntity;
 import ai.eigloo.agentic.graph.entity.GraphRunEntity;
 import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.entity.TaskEntity;
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
@@ -47,6 +51,12 @@ public class InternalGraphQueryService {
                 .map(this::toPlanLookup)
                 .collect(Collectors.toList());
 
+        List<GraphLookupEdge> edges = graph.getEdges().stream()
+                .map(this::toEdgeLookup)
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .toList();
+
         List<GraphLookupTask> tasks = graph.getTasks().stream()
                 .sorted(Comparator.comparing(TaskEntity::getName, Comparator.nullsLast(String::compareTo)))
                 .map(this::toTaskLookup)
@@ -57,7 +67,8 @@ public class InternalGraphQueryService {
                 graph.getTenantId(),
                 graph.getStatus() != null ? graph.getStatus().name() : null,
                 plans,
-                tasks);
+                tasks,
+                edges);
     }
 
     public GraphRunStateResponse getRunState(String tenantId, String graphId, String lifetimeId) {
@@ -81,9 +92,22 @@ public class InternalGraphQueryService {
     }
 
     private GraphLookupTask toTaskLookup(TaskEntity task) {
-        String upstreamPlanName = task.getUpstreamPlan() != null ? task.getUpstreamPlan().getName() : null;
-        String downstreamPlanName = task.getDownstreamPlan() != null ? task.getDownstreamPlan().getName() : null;
-        return new GraphLookupTask(task.getName(), upstreamPlanName, downstreamPlanName, toFileLookup(task.getFiles()));
+        return new GraphLookupTask(task.getName(), toFileLookup(task.getFiles()));
+    }
+
+    private GraphLookupEdge toEdgeLookup(GraphEdgeEntity edge) {
+        return new GraphLookupEdge(
+                edge.getFromNodeName(),
+                toLookupType(edge.getFromNodeType()),
+                edge.getToNodeName(),
+                toLookupType(edge.getToNodeType()));
+    }
+
+    private static GraphLookupNodeType toLookupType(ai.eigloo.agentic.graph.model.GraphNodeType type) {
+        return switch (type) {
+            case PLAN -> GraphLookupNodeType.PLAN;
+            case TASK -> GraphLookupNodeType.TASK;
+        };
     }
 
     private List<GraphLookupFile> toFileLookup(List<ExecutorFileEntity> files) {

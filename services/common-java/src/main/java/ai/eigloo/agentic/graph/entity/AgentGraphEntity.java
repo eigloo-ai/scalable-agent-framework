@@ -11,8 +11,6 @@ import org.hibernate.annotations.FetchMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Entity representing a persisted agent graph with its metadata.
@@ -61,13 +59,9 @@ public class AgentGraphEntity {
     @Fetch(FetchMode.SUBSELECT)
     private List<TaskEntity> tasks = new ArrayList<>();
 
-    // Core graph structure - computed from relationships
-    @Transient
-    private Map<String, Set<String>> planToTasks;
-
-    // Reverse mapping - computed from planToTasks
-    @Transient
-    private Map<String, String> taskToPlan;
+    @OneToMany(mappedBy = "agentGraph", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
+    @Fetch(FetchMode.SUBSELECT)
+    private List<GraphEdgeEntity> edges = new ArrayList<>();
 
     // Default constructor for JPA
     public AgentGraphEntity() {}
@@ -154,6 +148,14 @@ public class AgentGraphEntity {
         this.tasks = tasks != null ? tasks : new ArrayList<>();
     }
 
+    public List<GraphEdgeEntity> getEdges() {
+        return edges;
+    }
+
+    public void setEdges(List<GraphEdgeEntity> edges) {
+        this.edges = edges != null ? edges : new ArrayList<>();
+    }
+
     // Helper methods for managing plans and tasks with proper relationships
     public void clearPlans() {
         if (plans != null) {
@@ -187,6 +189,22 @@ public class AgentGraphEntity {
         }
     }
 
+    public void clearEdges() {
+        if (edges != null) {
+            edges.clear();
+        }
+    }
+
+    public void addEdge(GraphEdgeEntity edge) {
+        if (edge != null) {
+            if (edges == null) {
+                edges = new ArrayList<>();
+            }
+            edges.add(edge);
+            edge.setAgentGraph(this);
+        }
+    }
+
     /**
      * Replaces all plans with the provided list, maintaining proper relationships.
      */
@@ -211,68 +229,16 @@ public class AgentGraphEntity {
         }
     }
 
-    public Map<String, Set<String>> getPlanToTasks() {
-        if (planToTasks == null) {
-            computePlanTaskMappings();
-        }
-        return planToTasks;
-    }
-
-    public void setPlanToTasks(Map<String, Set<String>> planToTasks) {
-        // This is now computed from relationships, so we don't allow direct setting
-        throw new UnsupportedOperationException("planToTasks is computed from JPA relationships and cannot be set directly");
-    }
-
-    public Map<String, String> getTaskToPlan() {
-        if (taskToPlan == null) {
-            computePlanTaskMappings();
-        }
-        return taskToPlan;
-    }
-
     /**
-     * Computes the planToTasks and taskToPlan mappings from the foreign key relationships.
-     * This is called automatically when these mappings are first accessed.
+     * Replaces all edges with the provided list, maintaining proper relationships.
      */
-    private void computePlanTaskMappings() {
-        planToTasks = new java.util.HashMap<>();
-        taskToPlan = new java.util.HashMap<>();
-        
-        // Initialize empty sets for all plans
-        if (plans != null) {
-            for (PlanEntity plan : plans) {
-                planToTasks.put(plan.getName(), new java.util.HashSet<>());
+    public void replaceEdges(List<GraphEdgeEntity> newEdges) {
+        clearEdges();
+        if (newEdges != null) {
+            for (GraphEdgeEntity edge : newEdges) {
+                addEdge(edge);
             }
         }
-        
-        // Build mappings from task foreign key relationships
-        if (tasks != null) {
-            for (TaskEntity task : tasks) {
-                String taskName = task.getName();
-                
-                // Plan → Task relationship (plan feeds into task)
-                PlanEntity upstreamPlan = task.getUpstreamPlan();
-                if (upstreamPlan != null) {
-                    String planName = upstreamPlan.getName();
-                    planToTasks.get(planName).add(taskName);
-                }
-                
-                // Task → Plan relationship (task feeds into plan)
-                PlanEntity downstreamPlan = task.getDownstreamPlan();
-                if (downstreamPlan != null) {
-                    String downstreamPlanName = downstreamPlan.getName();
-                    taskToPlan.put(taskName, downstreamPlanName);
-                }
-            }
-        }
-    }
-
-    /**
-     * JPA callback to compute derived fields after loading from database.
-     */
-    @PostLoad
-    private void postLoad() {
-        computePlanTaskMappings();
     }
 
     @Override

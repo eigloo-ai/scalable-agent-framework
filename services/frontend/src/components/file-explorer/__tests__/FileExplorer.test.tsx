@@ -27,17 +27,14 @@ describe('FileExplorer', () => {
     name: 'Test Graph',
     tenantId: 'test-tenant',
     plans: [
-      { name: 'plan1', label: 'Plan 1', upstreamTaskIds: [], files: mockFiles }
+      { name: 'plan1', label: 'Plan 1', files: mockFiles }
     ],
     tasks: [
       { name: 'task1', label: 'Task 1', files: mockFiles }
     ],
-    planToTasks: {
-      'plan1': ['task1']
-    },
-    taskToPlan: {
-      'task1': 'plan1'
-    }
+    edges: [
+      { from: 'plan1', fromType: 'PLAN', to: 'task1', toType: 'TASK' }
+    ]
   };
 
   const mockOnFileSelect = vi.fn();
@@ -223,8 +220,7 @@ describe('FileExplorer', () => {
       tenantId: 'test-tenant',
       plans: [],
       tasks: [],
-      planToTasks: {},
-      taskToPlan: {}
+      edges: []
     };
     
     render(
@@ -283,7 +279,7 @@ describe('FileExplorer', () => {
     const graphWithModifiedFiles: AgentGraphDto = {
       ...mockGraph,
       plans: [
-        { name: 'plan1', label: 'Plan 1', upstreamTaskIds: [], files: modifiedFiles }
+        { name: 'plan1', label: 'Plan 1', files: modifiedFiles }
       ]
     };
     
