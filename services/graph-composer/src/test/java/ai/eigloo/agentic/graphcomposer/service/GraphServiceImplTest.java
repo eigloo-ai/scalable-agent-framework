@@ -6,7 +6,6 @@ import ai.eigloo.agentic.graphcomposer.dto.CreateGraphRequest;
 import ai.eigloo.agentic.graphcomposer.dto.ExecutionResponse;
 import ai.eigloo.agentic.graphcomposer.dto.GraphStatus;
 import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
-import ai.eigloo.agentic.graph.entity.GraphRunEntity;
 import ai.eigloo.agentic.graph.entity.GraphRunStatus;
 import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
@@ -345,7 +344,7 @@ class GraphServiceImplTest {
         when(taskRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
         when(validationService.validateGraph(any(AgentGraphDto.class))).thenReturn(validationResult);
         when(agentGraphRepository.save(any(AgentGraphEntity.class))).thenReturn(testGraphEntity);
-        when(graphRunRepository.save(any(GraphRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(graphRunRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // When
         ExecutionResponse result = graphService.submitForExecution(graphId, tenantId);
@@ -359,7 +358,7 @@ class GraphServiceImplTest {
         verify(agentGraphRepository).findByIdAndTenantId(graphId, tenantId);
         verify(validationService).validateGraph(any(AgentGraphDto.class));
         verify(agentGraphRepository).save(argThat(graph -> graph.getStatus() == ai.eigloo.agentic.graph.entity.GraphStatus.ACTIVE));
-        verify(graphRunRepository, times(2)).save(any(GraphRunEntity.class));
+        verify(graphRunRepository).save(argThat(graphRun -> graphRun.getStatus() == GraphRunStatus.QUEUED));
         verify(graphExecutionBootstrapPublisher).publishStartPlanInput(
                 eq(tenantId), eq(graphId), anyString(), eq("PlanA"));
     }
@@ -382,7 +381,6 @@ class GraphServiceImplTest {
         
         verify(agentGraphRepository).findByIdAndTenantId(graphId, tenantId);
         verify(validationService).validateGraph(any(AgentGraphDto.class));
-        verifyNoInteractions(graphRunRepository);
     }
 
     @Test
@@ -400,11 +398,10 @@ class GraphServiceImplTest {
         // When + Then
         assertThrows(GraphValidationException.class, () -> graphService.submitForExecution(graphId, tenantId));
         verify(graphExecutionBootstrapPublisher, never()).publishStartPlanInput(anyString(), anyString(), anyString(), anyString());
-        verifyNoInteractions(graphRunRepository);
     }
 
     @Test
-    void submitForExecution_ShouldMarkRunFailed_WhenBootstrapPublishFails() {
+    void submitForExecution_ShouldThrow_WhenBootstrapPublishFails() {
         // Given
         String graphId = "test-graph-id";
         String tenantId = "test-tenant";
@@ -417,14 +414,13 @@ class GraphServiceImplTest {
         when(taskRepository.findByAgentGraphIdWithFiles(graphId)).thenReturn(List.of());
         when(validationService.validateGraph(any(AgentGraphDto.class))).thenReturn(validationResult);
         when(agentGraphRepository.save(any(AgentGraphEntity.class))).thenReturn(testGraphEntity);
-        when(graphRunRepository.save(any(GraphRunEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(graphRunRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         doThrow(new RuntimeException("kafka down")).when(graphExecutionBootstrapPublisher)
                 .publishStartPlanInput(eq(tenantId), eq(graphId), anyString(), eq("PlanA"));
 
         // When + Then
         assertThrows(IllegalStateException.class, () -> graphService.submitForExecution(graphId, tenantId));
-
-        verify(graphRunRepository, atLeastOnce()).save(argThat(run -> run.getStatus() == GraphRunStatus.FAILED));
+        verify(graphRunRepository, atLeastOnce()).save(argThat(graphRun -> graphRun.getStatus() == GraphRunStatus.FAILED));
     }
 
     @Test
@@ -470,7 +466,6 @@ class GraphServiceImplTest {
 
         // When + Then
         assertThrows(IllegalArgumentException.class, () -> graphService.submitForExecution(graphId, tenantId));
-        verifyNoInteractions(graphRunRepository);
         verify(graphExecutionBootstrapPublisher, never())
                 .publishStartPlanInput(anyString(), anyString(), anyString(), anyString());
     }

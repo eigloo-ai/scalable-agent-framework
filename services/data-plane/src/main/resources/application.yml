@@ -1,8 +1,6 @@
 spring:
   application:
     name: data-plane
-  flyway:
-    baseline-on-migrate: true
   
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -51,6 +49,14 @@ spring:
   config:
     activate:
       on-profile: docker
+  flyway:
+    enabled: false
   jpa:
+    defer-datasource-initialization: true
     hibernate:
       ddl-auto: update
+  sql:
+    init:
+      mode: always
+      continue-on-error: false
+      schema-locations: classpath:db/sql/graph_status_constraint.sql,classpath:db/sql/graph_run_status_constraint.sql

@@ -135,11 +135,18 @@ public class SimpleIntegrationTest {
                         "server.port", "0"
                 )));
 
+        String dataPlanePort = dataPlaneContext.getEnvironment().getProperty("local.server.port");
+        if (dataPlanePort == null || dataPlanePort.isBlank()) {
+            throw new IllegalStateException("Data-plane local server port was not assigned");
+        }
+        String dataPlaneBaseUrl = "http://localhost:" + dataPlanePort;
+
         controlPlaneContext = startApplicationContext(
                 ControlPlaneApplication.class,
                 mergeProperties(shared, Map.of(
                         "spring.application.name", "integration-control-plane",
-                        "server.port", "0"
+                        "server.port", "0",
+                        "agentic.data-plane.base-url", dataPlaneBaseUrl
                 )));
 
         executorContext = startApplicationContext(
@@ -150,7 +157,8 @@ public class SimpleIntegrationTest {
                         "executor.python.command", "python3",
                         "executor.python.common-py-path", repositoryRoot.resolve("services/common-py").toString(),
                         "executor.python.working-root", repositoryRoot.resolve("services/integration_tests-java/target/executor-work").toString(),
-                        "executor.python.timeout-seconds", "60"
+                        "executor.python.timeout-seconds", "60",
+                        "agentic.data-plane.base-url", dataPlaneBaseUrl
                 )));
     }
 
@@ -198,7 +206,7 @@ public class SimpleIntegrationTest {
     }
 
     private void seedSimpleGraph(String tenantId, String graphId) {
-        AgentGraphRepository graphRepository = controlPlaneContext.getBean(AgentGraphRepository.class);
+        AgentGraphRepository graphRepository = dataPlaneContext.getBean(AgentGraphRepository.class);
 
         AgentGraphEntity graph = new AgentGraphEntity(graphId, tenantId, "integration-graph", GraphStatus.ACTIVE);
 
@@ -249,7 +257,7 @@ public class SimpleIntegrationTest {
     }
 
     private void seedFailingGraph(String tenantId, String graphId) {
-        AgentGraphRepository graphRepository = controlPlaneContext.getBean(AgentGraphRepository.class);
+        AgentGraphRepository graphRepository = dataPlaneContext.getBean(AgentGraphRepository.class);
 
         AgentGraphEntity graph = new AgentGraphEntity(graphId, tenantId, "integration-failing-graph", GraphStatus.ACTIVE);
 

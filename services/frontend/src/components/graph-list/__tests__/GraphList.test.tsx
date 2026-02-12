@@ -16,14 +16,14 @@ describe('GraphList', () => {
     {
       id: 'graph2',
       name: 'Test Graph 2',
-      status: 'RUNNING',
+      status: 'ACTIVE',
       createdAt: '2024-01-02T00:00:00Z',
       updatedAt: '2024-01-02T00:00:00Z'
     },
     {
       id: 'graph3',
       name: 'Test Graph 3',
-      status: 'ERROR',
+      status: 'ARCHIVED',
       createdAt: '2024-01-03T00:00:00Z',
       updatedAt: '2024-01-03T00:00:00Z'
     }
@@ -70,8 +70,8 @@ describe('GraphList', () => {
     );
 
     expect(screen.getByText('NEW')).toBeInTheDocument();
-    expect(screen.getByText('RUNNING')).toBeInTheDocument();
-    expect(screen.getByText('ERROR')).toBeInTheDocument();
+    expect(screen.getByText('ACTIVE')).toBeInTheDocument();
+    expect(screen.getByText('ARCHIVED')).toBeInTheDocument();
   });
 
   it('should display creation and modification dates', () => {
@@ -205,12 +205,12 @@ describe('GraphList', () => {
     );
 
     const executeButtons = screen.getAllByText('Execute');
-    fireEvent.click(executeButtons[0]);
+    fireEvent.click(executeButtons[1]);
 
-    expect(mockOnSubmitForExecution).toHaveBeenCalledWith('graph3'); // First in sorted order
+    expect(mockOnSubmitForExecution).toHaveBeenCalledWith('graph2');
   });
 
-  it('should disable execute button for running graphs', () => {
+  it('should disable execute button for archived graphs', () => {
     render(
       <GraphList
         graphs={mockGraphs}
@@ -225,10 +225,10 @@ describe('GraphList', () => {
 
     const executeButtons = screen.getAllByText('Execute');
     
-    // Find the running graph's execute button (graph2 with RUNNING status)
+    // Find the archived graph's execute button (graph3 with ARCHIVED status)
     // Since graphs are sorted by updatedAt desc, graph3 is first, graph2 is second
-    expect(executeButtons[1]).toBeDisabled(); // graph2 (RUNNING)
-    expect(executeButtons[0]).not.toBeDisabled(); // graph3 (ERROR)
+    expect(executeButtons[0]).toBeDisabled(); // graph3 (ARCHIVED)
+    expect(executeButtons[1]).not.toBeDisabled(); // graph2 (ACTIVE)
     expect(executeButtons[2]).not.toBeDisabled(); // graph1 (NEW)
   });
 
@@ -335,7 +335,7 @@ describe('GraphList', () => {
 
     // Click status filter
     const statusFilter = screen.getByLabelText('Filter by status:');
-    fireEvent.change(statusFilter, { target: { value: 'RUNNING' } });
+    fireEvent.change(statusFilter, { target: { value: 'ACTIVE' } });
 
     await waitFor(() => {
       expect(screen.getByText('Test Graph 2')).toBeInTheDocument();

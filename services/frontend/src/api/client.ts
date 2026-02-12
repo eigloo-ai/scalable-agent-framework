@@ -10,6 +10,8 @@ import type {
   NodeNameValidationRequest,
   ExecutionResponse,
   GraphStatusUpdate,
+  GraphRunSummary,
+  RunTimelineResponse,
 } from '../types';
 import {
   NetworkError,
@@ -167,7 +169,7 @@ export const graphApi = {
   getGraph: (graphId: string, tenantId: string): Promise<AgentGraphDto> =>
     withRetry(() => apiClient.get(`/graphs/${graphId}?tenantId=${tenantId}`)),
 
-  createGraph: (graph: Omit<AgentGraphDto, 'id' | 'createdAt' | 'updatedAt'>): Promise<AgentGraphDto> =>
+  createGraph: (graph: CreateGraphRequest): Promise<AgentGraphDto> =>
     withRetry(() => apiClient.post('/graphs', graph)),
 
   updateGraph: (
@@ -208,6 +210,26 @@ export const graphApi = {
     statusUpdate: GraphStatusUpdate
   ): Promise<void> =>
     withRetry(() => apiClient.put(`/graphs/${graphId}/status`, statusUpdate)),
+};
+
+export const runApi = {
+  listGraphRuns: (
+    graphId: string,
+    tenantId: string,
+    limit = 20
+  ): Promise<GraphRunSummary[]> =>
+    withRetry(() => apiClient.get(
+      `/graphs/${graphId}/runs?tenantId=${encodeURIComponent(tenantId)}&limit=${limit}`
+    )),
+
+  getRunTimeline: (
+    graphId: string,
+    lifetimeId: string,
+    tenantId: string
+  ): Promise<RunTimelineResponse> =>
+    withRetry(() => apiClient.get(
+      `/graphs/${graphId}/runs/${lifetimeId}/timeline?tenantId=${encodeURIComponent(tenantId)}`
+    )),
 };
 
 

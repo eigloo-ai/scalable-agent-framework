@@ -98,12 +98,10 @@ const GraphList: React.FC<GraphListProps> = ({
     switch (status) {
       case 'NEW':
         return 'status-badge status-new';
-      case 'RUNNING':
-        return 'status-badge status-running';
-      case 'STOPPED':
-        return 'status-badge status-stopped';
-      case 'ERROR':
-        return 'status-badge status-error';
+      case 'ACTIVE':
+        return 'status-badge status-active';
+      case 'ARCHIVED':
+        return 'status-badge status-archived';
       default:
         return 'status-badge';
     }
@@ -187,9 +185,8 @@ const GraphList: React.FC<GraphListProps> = ({
             >
               <option value="ALL">All Statuses</option>
               <option value="NEW">New</option>
-              <option value="RUNNING">Running</option>
-              <option value="STOPPED">Stopped</option>
-              <option value="ERROR">Error</option>
+              <option value="ACTIVE">Active</option>
+              <option value="ARCHIVED">Archived</option>
             </select>
           </div>
         </div>
@@ -253,7 +250,7 @@ const GraphList: React.FC<GraphListProps> = ({
                       onClick={() => onSubmitForExecution(graph.id)}
                       className="action-button execute-button"
                       title="Submit for execution"
-                      disabled={graph.status === 'RUNNING'}
+                      disabled={graph.status === 'ARCHIVED'}
                     >
                       Execute
                     </button>

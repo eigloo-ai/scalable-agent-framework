@@ -22,25 +22,14 @@ spring:
       linger-ms: 1
       buffer-memory: 33554432
 
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/agentic}
-    username: ${SPRING_DATASOURCE_USERNAME:agentic}
-    password: ${SPRING_DATASOURCE_PASSWORD:agentic}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-
 kafka:
   topic-patterns:
     plan-inputs: "plan-inputs-.*"
     task-inputs: "task-inputs-.*"
+
+agentic:
+  data-plane:
+    base-url: ${DATA_PLANE_BASE_URL:http://localhost:8081}
 
 executor:
   python:
@@ -69,6 +58,10 @@ spring:
   config:
     activate:
       on-profile: docker
+
+agentic:
+  data-plane:
+    base-url: ${DATA_PLANE_BASE_URL:http://data-plane:8080}
 
 executor:
   python:

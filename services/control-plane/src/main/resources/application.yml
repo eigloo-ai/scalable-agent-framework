@@ -4,20 +4,6 @@ server:
 spring:
   application:
     name: control_plane-java
-
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/agentic}
-    username: ${SPRING_DATASOURCE_USERNAME:agentic}
-    password: ${SPRING_DATASOURCE_PASSWORD:agentic}
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
   
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -41,6 +27,10 @@ kafka:
     persisted-task-executions: "persisted-task-executions-.*"
     persisted-plan-executions: "persisted-plan-executions-.*"
 
+agentic:
+  data-plane:
+    base-url: ${DATA_PLANE_BASE_URL:http://localhost:8081}
+
 logging:
   level:
     ai.eigloo.agentic: DEBUG
@@ -54,4 +44,14 @@ management:
         include: health,info,metrics
   endpoint:
     health:
-      show-details: always 
+      show-details: always
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+agentic:
+  data-plane:
+    base-url: ${DATA_PLANE_BASE_URL:http://data-plane:8080}
