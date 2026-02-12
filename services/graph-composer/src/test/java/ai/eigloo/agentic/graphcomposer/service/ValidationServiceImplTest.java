@@ -203,7 +203,7 @@ class ValidationServiceImplTest {
 
         // Then
         assertFalse(result.isValid());
-        assertTrue(result.getErrors().contains("Plan 'test_plan' is connected to 'non_existent_task' which is not a task"));
+        assertTrue(result.getErrors().contains("Task 'non_existent_task' referenced in edges but not found in graph"));
     }
 
     @Test
@@ -216,7 +216,7 @@ class ValidationServiceImplTest {
 
         // Then
         assertFalse(result.isValid());
-        assertTrue(result.getErrors().contains("Task 'test_task' is connected to 'non_existent_plan' which is not a plan"));
+        assertTrue(result.getErrors().contains("Plan 'non_existent_plan' referenced in edges but not found in graph"));
     }
 
     @Test
@@ -232,7 +232,10 @@ class ValidationServiceImplTest {
     @Test
     void validateTaskUpstreamConstraints_ShouldReturnInvalid_WhenTaskHasNoUpstreamPlan() {
         // Given
+        testTask.setUpstreamPlanId(null);
+        testPlan.setUpstreamTaskIds(Set.of());
         testGraph.setTaskToPlan(Map.of());
+        testGraph.setPlanToTasks(Map.of());
 
         // When
         ValidationResult result = validationService.validateTaskUpstreamConstraints(testGraph);

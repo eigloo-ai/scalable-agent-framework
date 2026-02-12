@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -88,28 +87,30 @@ public class ExecutionRouter {
                     taskName,
                     header.getExecId(),
                     header.getStatus());
-            Optional<String> downstreamPlanName =
-                    taskLookupService.lookupDownstreamPlanName(taskName, tenantId, graphId);
+            List<String> downstreamPlanNames =
+                    taskLookupService.lookupDownstreamPlanNames(taskName, tenantId, graphId);
 
-            if (downstreamPlanName.isEmpty()) {
+            if (downstreamPlanNames.isEmpty()) {
                 logger.info(
                         "No downstream plan found tenant={} graph={} lifetime={} task={} exec={}",
                         tenantId, graphId, lifetimeId, taskName, header.getExecId());
                 return;
             }
 
-            PlanInput planInput = PlanInput.newBuilder()
-                    .setInputId(UUID.randomUUID().toString())
-                    .setPlanName(downstreamPlanName.get())
-                    .addTaskExecutions(taskExecution)
-                    .setGraphId(graphId)
-                    .setLifetimeId(lifetimeId)
-                    .build();
+            for (String downstreamPlanName : downstreamPlanNames) {
+                PlanInput planInput = PlanInput.newBuilder()
+                        .setInputId(UUID.randomUUID().toString())
+                        .setPlanName(downstreamPlanName)
+                        .addTaskExecutions(taskExecution)
+                        .setGraphId(graphId)
+                        .setLifetimeId(lifetimeId)
+                        .build();
 
-            executorProducer.publishPlanInput(tenantId, planInput);
-            logger.info(
-                    "Published downstream PlanInput tenant={} graph={} lifetime={} fromTask={} toPlan={}",
-                    tenantId, graphId, lifetimeId, taskName, downstreamPlanName.get());
+                executorProducer.publishPlanInput(tenantId, planInput);
+                logger.info(
+                        "Published downstream PlanInput tenant={} graph={} lifetime={} fromTask={} toPlan={}",
+                        tenantId, graphId, lifetimeId, taskName, downstreamPlanName);
+            }
         } catch (Exception e) {
             logger.error("Error routing task execution for tenant {}: {}", tenantId, e.getMessage(), e);
         }

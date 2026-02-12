@@ -32,6 +32,11 @@ public class AgentGraphDto {
     private List<PlanDto> plans;
     
     private List<TaskDto> tasks;
+
+    /**
+     * Canonical directed DAG edges. Legacy adjacency maps are derived from this when present.
+     */
+    private List<GraphEdgeDto> edges;
     
     private Map<String, Set<String>> planToTasks;
     
@@ -50,12 +55,20 @@ public class AgentGraphDto {
                         List<PlanDto> plans, List<TaskDto> tasks, 
                         Map<String, Set<String>> planToTasks, Map<String, String> taskToPlan,
                         LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(id, name, tenantId, status, plans, tasks, null, planToTasks, taskToPlan, createdAt, updatedAt);
+    }
+
+    public AgentGraphDto(String id, String name, String tenantId, GraphStatus status,
+                        List<PlanDto> plans, List<TaskDto> tasks, List<GraphEdgeDto> edges,
+                        Map<String, Set<String>> planToTasks, Map<String, String> taskToPlan,
+                        LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.name = name;
         this.tenantId = tenantId;
         this.status = status;
         this.plans = plans;
         this.tasks = tasks;
+        this.edges = edges;
         this.planToTasks = planToTasks;
         this.taskToPlan = taskToPlan;
         this.createdAt = createdAt;
@@ -108,6 +121,14 @@ public class AgentGraphDto {
 
     public void setTasks(List<TaskDto> tasks) {
         this.tasks = tasks;
+    }
+
+    public List<GraphEdgeDto> getEdges() {
+        return edges;
+    }
+
+    public void setEdges(List<GraphEdgeDto> edges) {
+        this.edges = edges;
     }
 
     public Map<String, Set<String>> getPlanToTasks() {

@@ -1,6 +1,8 @@
 package ai.eigloo.agentic.dataplane.service;
 
 import ai.eigloo.agentic.graph.api.GraphLookupFile;
+import ai.eigloo.agentic.graph.api.GraphLookupEdge;
+import ai.eigloo.agentic.graph.api.GraphLookupNodeType;
 import ai.eigloo.agentic.graph.api.GraphLookupPlan;
 import ai.eigloo.agentic.graph.api.GraphLookupResponse;
 import ai.eigloo.agentic.graph.api.GraphLookupTask;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
@@ -52,12 +55,19 @@ public class InternalGraphQueryService {
                 .map(this::toTaskLookup)
                 .collect(Collectors.toList());
 
+        List<GraphLookupEdge> edges = graph.getTasks().stream()
+                .flatMap(task -> toTaskEdges(task).stream())
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .toList();
+
         return new GraphLookupResponse(
                 graph.getId(),
                 graph.getTenantId(),
                 graph.getStatus() != null ? graph.getStatus().name() : null,
                 plans,
-                tasks);
+                tasks,
+                edges);
     }
 
     public GraphRunStateResponse getRunState(String tenantId, String graphId, String lifetimeId) {
@@ -84,6 +94,36 @@ public class InternalGraphQueryService {
         String upstreamPlanName = task.getUpstreamPlan() != null ? task.getUpstreamPlan().getName() : null;
         String downstreamPlanName = task.getDownstreamPlan() != null ? task.getDownstreamPlan().getName() : null;
         return new GraphLookupTask(task.getName(), upstreamPlanName, downstreamPlanName, toFileLookup(task.getFiles()));
+    }
+
+    private List<GraphLookupEdge> toTaskEdges(TaskEntity task) {
+        List<GraphLookupEdge> edges = new java.util.ArrayList<>();
+        String taskName = task.getName();
+        if (taskName == null || taskName.isBlank()) {
+            return edges;
+        }
+
+        if (task.getUpstreamPlan() != null
+                && task.getUpstreamPlan().getName() != null
+                && !task.getUpstreamPlan().getName().isBlank()) {
+            edges.add(new GraphLookupEdge(
+                    task.getUpstreamPlan().getName(),
+                    GraphLookupNodeType.PLAN,
+                    taskName,
+                    GraphLookupNodeType.TASK));
+        }
+
+        if (task.getDownstreamPlan() != null
+                && task.getDownstreamPlan().getName() != null
+                && !task.getDownstreamPlan().getName().isBlank()) {
+            edges.add(new GraphLookupEdge(
+                    taskName,
+                    GraphLookupNodeType.TASK,
+                    task.getDownstreamPlan().getName(),
+                    GraphLookupNodeType.PLAN));
+        }
+
+        return edges;
     }
 
     private List<GraphLookupFile> toFileLookup(List<ExecutorFileEntity> files) {

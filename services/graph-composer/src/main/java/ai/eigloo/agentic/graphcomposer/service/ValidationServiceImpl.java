@@ -2,6 +2,8 @@ package ai.eigloo.agentic.graphcomposer.service;
 
 import ai.eigloo.agentic.graphcomposer.dto.AgentGraphDto;
 import ai.eigloo.agentic.graphcomposer.dto.ExecutorFileDto;
+import ai.eigloo.agentic.graphcomposer.dto.GraphEdgeDto;
+import ai.eigloo.agentic.graphcomposer.dto.GraphNodeType;
 import ai.eigloo.agentic.graphcomposer.dto.NodeNameValidationRequest;
 import ai.eigloo.agentic.graphcomposer.dto.PlanDto;
 import ai.eigloo.agentic.graphcomposer.dto.TaskDto;
@@ -131,49 +133,40 @@ public class ValidationServiceImpl implements ValidationService {
     public ValidationResult validateConnectionConstraints(AgentGraphDto graph) {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
-        
-        if (graph.getPlanToTasks() != null) {
-            // Validate that plans only connect to tasks
-            for (Map.Entry<String, Set<String>> entry : graph.getPlanToTasks().entrySet()) {
-                String planName = entry.getKey();
-                Set<String> connectedNodes = entry.getValue();
-                
-                // Check if plan exists
-                boolean planExists = graph.getPlans() != null && 
-                                   graph.getPlans().stream().anyMatch(p -> p.getName().equals(planName));
-                
-                if (!planExists) {
-                    errors.add("Plan '" + planName + "' referenced in connections but not found in graph");
-                    continue;
-                }
-                
-                // Check that all connected nodes are tasks
-                for (String connectedNode : connectedNodes) {
-                    boolean isTask = graph.getTasks() != null && 
-                                   graph.getTasks().stream().anyMatch(t -> t.getName().equals(connectedNode));
-                    
-                    if (!isTask) {
-                        errors.add("Plan '" + planName + "' is connected to '" + connectedNode + "' which is not a task");
-                    }
-                }
+
+        Set<String> planNames = graph.getPlans() != null
+                ? graph.getPlans().stream().map(PlanDto::getName).collect(Collectors.toSet())
+                : Set.of();
+        Set<String> taskNames = graph.getTasks() != null
+                ? graph.getTasks().stream().map(TaskDto::getName).collect(Collectors.toSet())
+                : Set.of();
+
+        List<GraphEdgeDto> edges = deriveCanonicalEdges(graph);
+        for (GraphEdgeDto edge : edges) {
+            if (edge.getFromType() == null || edge.getToType() == null) {
+                errors.add("Edge must include fromType and toType");
+                continue;
             }
-            
-            // Validate that tasks have valid upstream plans using taskToPlan map
-            if (graph.getTasks() != null && graph.getTaskToPlan() != null) {
-                for (TaskDto task : graph.getTasks()) {
-                    String taskName = task.getName();
-                    String upstreamPlan = graph.getTaskToPlan().get(taskName);
-                    
-                    if (upstreamPlan != null && !upstreamPlan.isEmpty()) {
-                        // Check if the upstream plan exists
-                        boolean planExists = graph.getPlans() != null && 
-                                           graph.getPlans().stream().anyMatch(p -> p.getName().equals(upstreamPlan));
-                        
-                        if (!planExists) {
-                            errors.add("Task '" + taskName + "' is connected to '" + upstreamPlan + "' which is not a plan");
-                        }
-                    }
-                }
+            if (edge.getFrom() == null || edge.getFrom().isBlank() || edge.getTo() == null || edge.getTo().isBlank()) {
+                errors.add("Edge endpoints cannot be blank");
+                continue;
+            }
+            if (edge.getFromType() == edge.getToType()) {
+                errors.add("Edge '" + edge.getFrom() + "' -> '" + edge.getTo() + "' must connect PLAN to TASK or TASK to PLAN");
+                continue;
+            }
+
+            if (edge.getFromType() == GraphNodeType.PLAN && !planNames.contains(edge.getFrom())) {
+                errors.add("Plan '" + edge.getFrom() + "' referenced in edges but not found in graph");
+            }
+            if (edge.getFromType() == GraphNodeType.TASK && !taskNames.contains(edge.getFrom())) {
+                errors.add("Task '" + edge.getFrom() + "' referenced in edges but not found in graph");
+            }
+            if (edge.getToType() == GraphNodeType.PLAN && !planNames.contains(edge.getTo())) {
+                errors.add("Plan '" + edge.getTo() + "' referenced in edges but not found in graph");
+            }
+            if (edge.getToType() == GraphNodeType.TASK && !taskNames.contains(edge.getTo())) {
+                errors.add("Task '" + edge.getTo() + "' referenced in edges but not found in graph");
             }
         }
         
@@ -242,25 +235,21 @@ public class ValidationServiceImpl implements ValidationService {
     public ValidationResult validateTaskUpstreamConstraints(AgentGraphDto graph) {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
-        
+
+        Map<String, Integer> incomingPlanEdgeCounts = new HashMap<>();
+        List<GraphEdgeDto> edges = deriveCanonicalEdges(graph);
+        for (GraphEdgeDto edge : edges) {
+            if (edge.getFromType() == GraphNodeType.PLAN && edge.getToType() == GraphNodeType.TASK) {
+                incomingPlanEdgeCounts.merge(edge.getTo(), 1, Integer::sum);
+            }
+        }
+
         if (graph.getTasks() != null) {
             for (TaskDto task : graph.getTasks()) {
                 String taskName = task.getName();
-                
-                // Check if task has exactly one upstream plan using taskToPlan map
-                final String upstreamPlan = graph.getTaskToPlan() != null ? 
-                    graph.getTaskToPlan().get(taskName) : null;
-                
-                if (upstreamPlan == null || upstreamPlan.isEmpty()) {
+                int incomingCount = incomingPlanEdgeCounts.getOrDefault(taskName, 0);
+                if (incomingCount != 1) {
                     errors.add("Task '" + taskName + "' must have exactly one upstream plan");
-                } else {
-                    // Verify the upstream plan exists
-                    boolean planExists = graph.getPlans() != null && 
-                                       graph.getPlans().stream().anyMatch(p -> p.getName().equals(upstreamPlan));
-                    
-                    if (!planExists) {
-                        errors.add("Task '" + taskName + "' references upstream plan '" + upstreamPlan + "' which does not exist");
-                    }
                 }
             }
         }
@@ -272,25 +261,16 @@ public class ValidationServiceImpl implements ValidationService {
     public ValidationResult validatePlanUpstreamConstraints(AgentGraphDto graph) {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
-        
-        // Plans can have multiple upstream tasks, so this is generally permissive
-        // We mainly check that referenced upstream tasks exist
-        
-        if (graph.getPlans() != null && graph.getPlanToTasks() != null) {
-            for (PlanDto plan : graph.getPlans()) {
-                String planName = plan.getName();
-                
-                if (plan.getUpstreamTaskIds() != null) {
-                    for (String upstreamTaskId : plan.getUpstreamTaskIds()) {
-                        // Verify the upstream task exists
-                        boolean taskExists = graph.getTasks() != null && 
-                                           graph.getTasks().stream().anyMatch(t -> t.getName().equals(upstreamTaskId));
-                        
-                        if (!taskExists) {
-                            errors.add("Plan '" + planName + "' references upstream task '" + upstreamTaskId + "' which does not exist");
-                        }
-                    }
-                }
+
+        Set<String> taskNames = graph.getTasks() != null
+                ? graph.getTasks().stream().map(TaskDto::getName).collect(Collectors.toSet())
+                : Set.of();
+
+        for (GraphEdgeDto edge : deriveCanonicalEdges(graph)) {
+            if (edge.getFromType() == GraphNodeType.TASK
+                    && edge.getToType() == GraphNodeType.PLAN
+                    && !taskNames.contains(edge.getFrom())) {
+                errors.add("Plan '" + edge.getTo() + "' references upstream task '" + edge.getFrom() + "' which does not exist");
             }
         }
         
@@ -313,14 +293,14 @@ public class ValidationServiceImpl implements ValidationService {
             allNodes.addAll(graph.getTasks().stream().map(TaskDto::getName).collect(Collectors.toSet()));
         }
         
-        // Collect connected nodes
-        if (graph.getPlanToTasks() != null) {
-            connectedNodes.addAll(graph.getPlanToTasks().keySet());
-            graph.getPlanToTasks().values().forEach(connectedNodes::addAll);
-        }
-        if (graph.getTaskToPlan() != null) {
-            connectedNodes.addAll(graph.getTaskToPlan().keySet());
-            connectedNodes.addAll(graph.getTaskToPlan().values());
+        // Collect connected nodes from canonical edges.
+        for (GraphEdgeDto edge : deriveCanonicalEdges(graph)) {
+            if (edge.getFrom() != null && !edge.getFrom().isBlank()) {
+                connectedNodes.add(edge.getFrom());
+            }
+            if (edge.getTo() != null && !edge.getTo().isBlank()) {
+                connectedNodes.add(edge.getTo());
+            }
         }
         
         // Find orphaned nodes
@@ -381,6 +361,66 @@ public class ValidationServiceImpl implements ValidationService {
         }
         
         return new ValidationResult(errors.isEmpty(), errors, warnings);
+    }
+
+    private List<GraphEdgeDto> deriveCanonicalEdges(AgentGraphDto graph) {
+        LinkedHashMap<String, GraphEdgeDto> deduped = new LinkedHashMap<>();
+
+        if (graph.getEdges() != null && !graph.getEdges().isEmpty()) {
+            for (GraphEdgeDto edge : graph.getEdges()) {
+                addEdge(deduped, edge.getFrom(), edge.getFromType(), edge.getTo(), edge.getToType());
+            }
+            return new ArrayList<>(deduped.values());
+        }
+
+        if (graph.getTasks() != null) {
+            for (TaskDto task : graph.getTasks()) {
+                if (task.getUpstreamPlanId() != null && !task.getUpstreamPlanId().isBlank()) {
+                    addEdge(deduped, task.getUpstreamPlanId(), GraphNodeType.PLAN, task.getName(), GraphNodeType.TASK);
+                }
+            }
+        }
+
+        if (graph.getPlans() != null) {
+            for (PlanDto plan : graph.getPlans()) {
+                if (plan.getUpstreamTaskIds() == null) {
+                    continue;
+                }
+                for (String taskName : plan.getUpstreamTaskIds()) {
+                    addEdge(deduped, taskName, GraphNodeType.TASK, plan.getName(), GraphNodeType.PLAN);
+                }
+            }
+        }
+
+        if (graph.getPlanToTasks() != null) {
+            for (Map.Entry<String, Set<String>> entry : graph.getPlanToTasks().entrySet()) {
+                for (String taskName : entry.getValue()) {
+                    addEdge(deduped, entry.getKey(), GraphNodeType.PLAN, taskName, GraphNodeType.TASK);
+                }
+            }
+        }
+
+        if (graph.getTaskToPlan() != null) {
+            // Legacy semantics retained for compatibility: Task -> upstream Plan.
+            for (Map.Entry<String, String> entry : graph.getTaskToPlan().entrySet()) {
+                addEdge(deduped, entry.getValue(), GraphNodeType.PLAN, entry.getKey(), GraphNodeType.TASK);
+            }
+        }
+
+        return new ArrayList<>(deduped.values());
+    }
+
+    private static void addEdge(
+            LinkedHashMap<String, GraphEdgeDto> deduped,
+            String from,
+            GraphNodeType fromType,
+            String to,
+            GraphNodeType toType) {
+        if (from == null || from.isBlank() || to == null || to.isBlank() || fromType == null || toType == null) {
+            return;
+        }
+        String key = fromType + "|" + from + "->" + toType + "|" + to;
+        deduped.putIfAbsent(key, new GraphEdgeDto(from, fromType, to, toType));
     }
 
     @Override

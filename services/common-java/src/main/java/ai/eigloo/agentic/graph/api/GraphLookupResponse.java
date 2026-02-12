@@ -14,6 +14,7 @@ public class GraphLookupResponse {
     private String status;
     private List<GraphLookupPlan> plans = new ArrayList<>();
     private List<GraphLookupTask> tasks = new ArrayList<>();
+    private List<GraphLookupEdge> edges = new ArrayList<>();
 
     public GraphLookupResponse() {
     }
@@ -24,11 +25,22 @@ public class GraphLookupResponse {
             String status,
             List<GraphLookupPlan> plans,
             List<GraphLookupTask> tasks) {
+        this(id, tenantId, status, plans, tasks, null);
+    }
+
+    public GraphLookupResponse(
+            String id,
+            String tenantId,
+            String status,
+            List<GraphLookupPlan> plans,
+            List<GraphLookupTask> tasks,
+            List<GraphLookupEdge> edges) {
         this.id = id;
         this.tenantId = tenantId;
         this.status = status;
         this.plans = plans != null ? plans : new ArrayList<>();
         this.tasks = tasks != null ? tasks : new ArrayList<>();
+        this.edges = edges != null ? edges : new ArrayList<>();
     }
 
     public String getId() {
@@ -69,5 +81,13 @@ public class GraphLookupResponse {
 
     public void setTasks(List<GraphLookupTask> tasks) {
         this.tasks = tasks != null ? tasks : new ArrayList<>();
+    }
+
+    public List<GraphLookupEdge> getEdges() {
+        return edges;
+    }
+
+    public void setEdges(List<GraphLookupEdge> edges) {
+        this.edges = edges != null ? edges : new ArrayList<>();
     }
 }

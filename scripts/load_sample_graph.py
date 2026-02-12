@@ -165,11 +165,17 @@ def task(task_input: TaskInput) -> TaskResult:
                 ],
             },
         ],
+        "edges": [
+            {"from": "PlanA", "fromType": "PLAN", "to": "Task1A", "toType": "TASK"},
+            {"from": "PlanA", "fromType": "PLAN", "to": "Task1B", "toType": "TASK"},
+            {"from": "Task1A", "fromType": "TASK", "to": "PlanB", "toType": "PLAN"},
+            {"from": "PlanB", "fromType": "PLAN", "to": "Task2", "toType": "TASK"},
+        ],
+        # Legacy compatibility maps. Canonical topology now comes from `edges`.
         "planToTasks": {
             "PlanA": ["Task1A", "Task1B"],
             "PlanB": ["Task2"],
         },
-        # taskToPlan is used by current graph-composer validation as Task -> upstream Plan.
         "taskToPlan": {
             "Task1A": "PlanA",
             "Task1B": "PlanA",

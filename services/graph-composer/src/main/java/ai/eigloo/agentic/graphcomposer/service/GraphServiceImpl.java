@@ -137,23 +137,8 @@ public class GraphServiceImpl implements GraphService {
         AgentGraphEntity savedGraph = updateGraphWithCascading(existingGraph, graphDto);
         
         logger.info("Updated graph: {}", savedGraph.getId());
-        
-        // Return the updated graph DTO
-        AgentGraphDto updatedDto = new AgentGraphDto();
-        updatedDto.setId(savedGraph.getId());
-        updatedDto.setName(savedGraph.getName());
-        updatedDto.setTenantId(savedGraph.getTenantId());
-        updatedDto.setStatus(convertToDtoStatus(savedGraph.getStatus()));
-        updatedDto.setPlans(graphDto.getPlans());
-        updatedDto.setTasks(graphDto.getTasks());
-        List<PlanDto> plans = graphDto.getPlans() != null ? graphDto.getPlans() : new ArrayList<>();
-        List<TaskDto> tasks = graphDto.getTasks() != null ? graphDto.getTasks() : new ArrayList<>();
-        updatedDto.setPlanToTasks(computePlanToTasks(plans, tasks));
-        updatedDto.setTaskToPlan(computeTaskToPlan(tasks));
-        updatedDto.setCreatedAt(savedGraph.getCreatedAt());
-        updatedDto.setUpdatedAt(savedGraph.getUpdatedAt());
-        
-        return updatedDto;
+
+        return convertToDto(savedGraph);
     }
 
     @Override
@@ -289,9 +274,9 @@ public class GraphServiceImpl implements GraphService {
                 .map(taskEntity -> convertTaskToDto(taskEntity, plans))
                 .collect(Collectors.toList());
         
-        // Compute planToTasks and taskToPlan mappings
-        Map<String, Set<String>> planToTasks = computePlanToTasks(planDtos, taskDtos);
-        Map<String, String> taskToPlan = computeTaskToPlan(taskDtos);
+        List<GraphEdgeDto> edges = deriveEdgesFromDtos(planDtos, taskDtos);
+        Map<String, Set<String>> planToTasks = computePlanToTasks(edges, planDtos);
+        Map<String, String> taskToPlan = computeTaskToUpstreamPlan(edges, taskDtos);
         
         return new AgentGraphDto(
                 entity.getId(),
@@ -300,6 +285,7 @@ public class GraphServiceImpl implements GraphService {
                 convertToDtoStatus(entity.getStatus()),
                 planDtos,
                 taskDtos,
+                edges,
                 planToTasks,
                 taskToPlan,
                 entity.getCreatedAt(),
@@ -319,9 +305,9 @@ public class GraphServiceImpl implements GraphService {
                 .map(taskEntity -> convertTaskToDtoOptimized(taskEntity, entity.getPlans()))
                 .collect(Collectors.toList());
         
-        // Compute planToTasks and taskToPlan mappings
-        Map<String, Set<String>> planToTasks = computePlanToTasks(planDtos, taskDtos);
-        Map<String, String> taskToPlan = computeTaskToPlan(taskDtos);
+        List<GraphEdgeDto> edges = deriveEdgesFromDtos(planDtos, taskDtos);
+        Map<String, Set<String>> planToTasks = computePlanToTasks(edges, planDtos);
+        Map<String, String> taskToPlan = computeTaskToUpstreamPlan(edges, taskDtos);
         
         return new AgentGraphDto(
                 entity.getId(),
@@ -330,6 +316,7 @@ public class GraphServiceImpl implements GraphService {
                 convertToDtoStatus(entity.getStatus()),
                 planDtos,
                 taskDtos,
+                edges,
                 planToTasks,
                 taskToPlan,
                 entity.getCreatedAt(),
@@ -446,11 +433,17 @@ public class GraphServiceImpl implements GraphService {
         if (graphDto.getPlans() == null) {
             return List.of();
         }
+        List<GraphEdgeDto> edges = deriveCanonicalEdges(graphDto);
+        Set<String> plansWithIncomingTaskEdges = edges.stream()
+                .filter(edge -> edge.getFromType() == GraphNodeType.TASK && edge.getToType() == GraphNodeType.PLAN)
+                .map(GraphEdgeDto::getTo)
+                .filter(name -> name != null && !name.isBlank())
+                .collect(Collectors.toSet());
 
         return graphDto.getPlans().stream()
-                .filter(plan -> plan.getName() != null && !plan.getName().isBlank())
-                .filter(plan -> plan.getUpstreamTaskIds() == null || plan.getUpstreamTaskIds().isEmpty())
                 .map(PlanDto::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .filter(name -> !plansWithIncomingTaskEdges.contains(name))
                 .distinct()
                 .toList();
     }
@@ -464,14 +457,14 @@ public class GraphServiceImpl implements GraphService {
         List<PlanEntity> planEntities = createPlanEntitiesFromDtos(existingGraph, graphDto.getPlans());
         
         // Create task entities with files and establish relationships
-        List<TaskEntity> taskEntities = createTaskEntitiesFromDtos(existingGraph, graphDto.getTasks(), planEntities);
+        List<TaskEntity> taskEntities = createTaskEntitiesFromDtos(existingGraph, graphDto.getTasks());
         
         // Replace plans and tasks using cascade operations
         existingGraph.replacePlans(planEntities);
         existingGraph.replaceTasks(taskEntities);
         
-        // Establish task-plan relationships after all entities are created
-        establishTaskPlanRelationships(taskEntities, planEntities, graphDto);
+        // Establish plan/task relationships from canonical directed edges.
+        establishTaskPlanRelationships(taskEntities, planEntities, deriveCanonicalEdges(graphDto));
         
         // Single save operation - JPA will cascade to save all plans, tasks, and files
         return agentGraphRepository.save(existingGraph);
@@ -509,7 +502,7 @@ public class GraphServiceImpl implements GraphService {
     /**
      * Creates task entities from DTOs with their associated files.
      */
-    private List<TaskEntity> createTaskEntitiesFromDtos(AgentGraphEntity graph, List<TaskDto> taskDtos, List<PlanEntity> planEntities) {
+    private List<TaskEntity> createTaskEntitiesFromDtos(AgentGraphEntity graph, List<TaskDto> taskDtos) {
         List<TaskEntity> taskEntities = new ArrayList<>();
         
         if (taskDtos != null) {
@@ -519,15 +512,6 @@ public class GraphServiceImpl implements GraphService {
                 taskEntity.setName(taskDto.getName());
                 taskEntity.setLabel(taskDto.getLabel());
                 taskEntity.setAgentGraph(graph);
-                
-                // Find upstream plan by name
-                if (taskDto.getUpstreamPlanId() != null && !taskDto.getUpstreamPlanId().isEmpty()) {
-                    PlanEntity upstreamPlan = planEntities.stream()
-                            .filter(p -> p.getName().equals(taskDto.getUpstreamPlanId()))
-                            .findFirst()
-                            .orElse(null);
-                    taskEntity.setUpstreamPlan(upstreamPlan);
-                }
                 
                 // Create files for this task
                 if (taskDto.getFiles() != null) {
@@ -545,33 +529,53 @@ public class GraphServiceImpl implements GraphService {
     }
     
     /**
-     * Establishes Task -> Plan relationships using each plan's upstreamTaskIds.
+     * Establishes task relationships from canonical directed edges.
      */
-    private void establishTaskPlanRelationships(List<TaskEntity> taskEntities, List<PlanEntity> planEntities, AgentGraphDto graphDto) {
-        if (graphDto.getPlans() == null) {
-            return;
-        }
-
+    private void establishTaskPlanRelationships(
+            List<TaskEntity> taskEntities,
+            List<PlanEntity> planEntities,
+            List<GraphEdgeDto> canonicalEdges) {
         Map<String, TaskEntity> tasksByName = taskEntities.stream()
                 .collect(Collectors.toMap(TaskEntity::getName, task -> task));
         Map<String, PlanEntity> plansByName = planEntities.stream()
                 .collect(Collectors.toMap(PlanEntity::getName, plan -> plan));
 
-        for (PlanDto planDto : graphDto.getPlans()) {
-            if (planDto.getUpstreamTaskIds() == null || planDto.getUpstreamTaskIds().isEmpty()) {
+        for (GraphEdgeDto edge : canonicalEdges) {
+            if (edge.getFrom() == null || edge.getTo() == null) {
                 continue;
             }
 
-            PlanEntity downstreamPlan = plansByName.get(planDto.getName());
-            if (downstreamPlan == null) {
-                continue;
-            }
-
-            for (String upstreamTaskName : planDto.getUpstreamTaskIds()) {
-                TaskEntity upstreamTask = tasksByName.get(upstreamTaskName);
-                if (upstreamTask != null) {
-                    upstreamTask.setDownstreamPlan(downstreamPlan);
+            if (edge.getFromType() == GraphNodeType.PLAN && edge.getToType() == GraphNodeType.TASK) {
+                PlanEntity upstreamPlan = plansByName.get(edge.getFrom());
+                TaskEntity task = tasksByName.get(edge.getTo());
+                if (upstreamPlan == null || task == null) {
+                    continue;
                 }
+                if (task.getUpstreamPlan() != null && !upstreamPlan.getName().equals(task.getUpstreamPlan().getName())) {
+                    throw new GraphValidationException(
+                            "Task has multiple upstream plans",
+                            List.of("Task '" + task.getName() + "' has multiple upstream plans in edges."),
+                            List.of());
+                }
+                task.setUpstreamPlan(upstreamPlan);
+                continue;
+            }
+
+            if (edge.getFromType() == GraphNodeType.TASK && edge.getToType() == GraphNodeType.PLAN) {
+                TaskEntity task = tasksByName.get(edge.getFrom());
+                PlanEntity downstreamPlan = plansByName.get(edge.getTo());
+                if (task == null || downstreamPlan == null) {
+                    continue;
+                }
+                if (task.getDownstreamPlan() != null && !downstreamPlan.getName().equals(task.getDownstreamPlan().getName())) {
+                    throw new GraphValidationException(
+                            "Task has multiple downstream plans",
+                            List.of("Task '" + task.getName()
+                                    + "' has multiple downstream plans in edges. "
+                                    + "Current persistence supports at most one downstream plan per task."),
+                            List.of());
+                }
+                task.setDownstreamPlan(downstreamPlan);
             }
         }
     }
@@ -599,46 +603,116 @@ public class GraphServiceImpl implements GraphService {
         return fileEntity;
     }
     
-    /**
-     * Compute planToTasks mapping from DTOs.
-     */
-    private Map<String, Set<String>> computePlanToTasks(List<PlanDto> planDtos, List<TaskDto> taskDtos) {
-        Map<String, Set<String>> planToTasks = new HashMap<>();
-        
-        if (planDtos != null) {
-            // Initialize all plans with empty sets
-            for (PlanDto plan : planDtos) {
-                planToTasks.put(plan.getName(), new HashSet<>());
+    private List<GraphEdgeDto> deriveCanonicalEdges(AgentGraphDto graphDto) {
+        LinkedHashMap<String, GraphEdgeDto> deduped = new LinkedHashMap<>();
+
+        if (graphDto.getEdges() != null && !graphDto.getEdges().isEmpty()) {
+            for (GraphEdgeDto edge : graphDto.getEdges()) {
+                addEdge(deduped, edge.getFrom(), edge.getFromType(), edge.getTo(), edge.getToType());
             }
+            return new ArrayList<>(deduped.values());
         }
-        
-        if (taskDtos != null) {
-            // Add tasks to their upstream plans
-            for (TaskDto task : taskDtos) {
-                if (task.getUpstreamPlanId() != null) {
-                    planToTasks.computeIfAbsent(task.getUpstreamPlanId(), k -> new HashSet<>())
-                              .add(task.getName());
+
+        for (GraphEdgeDto edge : deriveEdgesFromDtos(graphDto.getPlans(), graphDto.getTasks())) {
+            addEdge(deduped, edge.getFrom(), edge.getFromType(), edge.getTo(), edge.getToType());
+        }
+
+        if (graphDto.getPlanToTasks() != null) {
+            for (Map.Entry<String, Set<String>> entry : graphDto.getPlanToTasks().entrySet()) {
+                for (String taskName : entry.getValue()) {
+                    addEdge(deduped, entry.getKey(), GraphNodeType.PLAN, taskName, GraphNodeType.TASK);
                 }
             }
         }
-        
+
+        // Legacy semantics for taskToPlan map in existing clients: Task -> upstream Plan.
+        if (graphDto.getTaskToPlan() != null) {
+            for (Map.Entry<String, String> entry : graphDto.getTaskToPlan().entrySet()) {
+                addEdge(deduped, entry.getValue(), GraphNodeType.PLAN, entry.getKey(), GraphNodeType.TASK);
+            }
+        }
+
+        return new ArrayList<>(deduped.values());
+    }
+
+    private List<GraphEdgeDto> deriveEdgesFromDtos(List<PlanDto> planDtos, List<TaskDto> taskDtos) {
+        LinkedHashMap<String, GraphEdgeDto> deduped = new LinkedHashMap<>();
+
+        if (taskDtos != null) {
+            for (TaskDto task : taskDtos) {
+                if (task.getUpstreamPlanId() != null && !task.getUpstreamPlanId().isBlank()) {
+                    addEdge(deduped, task.getUpstreamPlanId(), GraphNodeType.PLAN, task.getName(), GraphNodeType.TASK);
+                }
+            }
+        }
+
+        if (planDtos != null) {
+            for (PlanDto plan : planDtos) {
+                if (plan.getUpstreamTaskIds() == null) {
+                    continue;
+                }
+                for (String upstreamTaskName : plan.getUpstreamTaskIds()) {
+                    addEdge(deduped, upstreamTaskName, GraphNodeType.TASK, plan.getName(), GraphNodeType.PLAN);
+                }
+            }
+        }
+
+        return new ArrayList<>(deduped.values());
+    }
+
+    private Map<String, Set<String>> computePlanToTasks(List<GraphEdgeDto> edges, List<PlanDto> plans) {
+        Map<String, Set<String>> planToTasks = new HashMap<>();
+        if (plans != null) {
+            for (PlanDto plan : plans) {
+                if (plan.getName() != null && !plan.getName().isBlank()) {
+                    planToTasks.put(plan.getName(), new LinkedHashSet<>());
+                }
+            }
+        }
+
+        for (GraphEdgeDto edge : edges) {
+            if (edge.getFromType() == GraphNodeType.PLAN && edge.getToType() == GraphNodeType.TASK) {
+                planToTasks.computeIfAbsent(edge.getFrom(), ignored -> new LinkedHashSet<>()).add(edge.getTo());
+            }
+        }
         return planToTasks;
     }
-    
+
     /**
-     * Compute taskToPlan mapping from DTOs.
+     * Compatibility map preserving legacy Task -> upstream Plan semantics.
      */
-    private Map<String, String> computeTaskToPlan(List<TaskDto> taskDtos) {
+    private Map<String, String> computeTaskToUpstreamPlan(List<GraphEdgeDto> edges, List<TaskDto> tasks) {
         Map<String, String> taskToPlan = new HashMap<>();
-        
-        if (taskDtos != null) {
-            for (TaskDto task : taskDtos) {
-                if (task.getUpstreamPlanId() != null) {
-                    taskToPlan.put(task.getName(), task.getUpstreamPlanId());
-                }
-            }
+        Set<String> knownTasks = new HashSet<>();
+        if (tasks != null) {
+            knownTasks.addAll(tasks.stream()
+                    .map(TaskDto::getName)
+                    .filter(name -> name != null && !name.isBlank())
+                    .collect(Collectors.toSet()));
         }
-        
+
+        for (GraphEdgeDto edge : edges) {
+            if (edge.getFromType() != GraphNodeType.PLAN || edge.getToType() != GraphNodeType.TASK) {
+                continue;
+            }
+            if (!knownTasks.isEmpty() && !knownTasks.contains(edge.getTo())) {
+                continue;
+            }
+            taskToPlan.putIfAbsent(edge.getTo(), edge.getFrom());
+        }
         return taskToPlan;
+    }
+
+    private void addEdge(
+            LinkedHashMap<String, GraphEdgeDto> deduped,
+            String from,
+            GraphNodeType fromType,
+            String to,
+            GraphNodeType toType) {
+        if (from == null || from.isBlank() || to == null || to.isBlank() || fromType == null || toType == null) {
+            return;
+        }
+        String key = fromType + "|" + from + "->" + toType + "|" + to;
+        deduped.putIfAbsent(key, new GraphEdgeDto(from, fromType, to, toType));
     }
 }
