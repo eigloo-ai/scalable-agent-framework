@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/services/common-java/common-java.iml" filepath="$PROJECT_DIR$/services/common-java/common-java.iml" />
       <module fileurl="file://$PROJECT_DIR$/services/common-py/common-py.iml" filepath="$PROJECT_DIR$/services/common-py/common-py.iml" />
       <module fileurl="file://$PROJECT_DIR$/services/executor_old-py/executor_old-py.iml" filepath="$PROJECT_DIR$/services/executor_old-py/executor_old-py.iml" />
-      <module fileurl="file://$PROJECT_DIR$/services/executors-py/executors-py.iml" filepath="$PROJECT_DIR$/services/executors-py/executors-py.iml" />
       <module fileurl="file://$PROJECT_DIR$/services/frontend/frontend.iml" filepath="$PROJECT_DIR$/services/frontend/frontend.iml" />
       <module fileurl="file://$PROJECT_DIR$/services/standalone-py/standalone-py.iml" filepath="$PROJECT_DIR$/services/standalone-py/standalone-py.iml" />
     </modules>

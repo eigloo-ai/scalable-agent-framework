@@ -69,9 +69,12 @@ public class GraphRunLifecycleService {
 
     /**
      * Apply lifecycle transitions when a task execution is persisted.
+     *
+     * @param taskExecution the persisted task execution entity
+     * @param errorMessage  error message from the TaskResult (may be null)
      */
     @Transactional
-    public void onTaskExecutionPersisted(TaskExecutionEntity taskExecution) {
+    public void onTaskExecutionPersisted(TaskExecutionEntity taskExecution, String errorMessage) {
         ExecutionUpdate update = new ExecutionUpdate(
                 taskExecution.getTenantId(),
                 taskExecution.getGraphId(),
@@ -79,7 +82,7 @@ public class GraphRunLifecycleService {
                 isFailedStatus(taskExecution.getStatus()),
                 isSuccessfulStatus(taskExecution.getStatus()),
                 taskExecution.getCreatedAt(),
-                null);
+                errorMessage);
         applyUpdate(update);
     }
 
@@ -241,23 +244,28 @@ public class GraphRunLifecycleService {
             }
         }
 
-        Map<String, String> downstreamPlanByTaskName = graph.getEdges().stream()
-                .filter(edge -> edge.getFromNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.TASK)
-                .filter(edge -> edge.getToNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.PLAN)
-                .filter(edge -> !isBlank(edge.getFromNodeName()) && !isBlank(edge.getToNodeName()))
-                .collect(Collectors.toMap(
-                        edge -> edge.getFromNodeName(),
-                        edge -> edge.getToNodeName(),
-                        (left, right) -> left,
-                        HashMap::new));
+        Map<String, Set<String>> downstreamPlansByTaskName = new HashMap<>();
+        for (var edge : graph.getEdges()) {
+            if (edge.getFromNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.TASK
+                    && edge.getToNodeType() == ai.eigloo.agentic.graph.model.GraphNodeType.PLAN
+                    && !isBlank(edge.getFromNodeName())
+                    && !isBlank(edge.getToNodeName())) {
+                downstreamPlansByTaskName
+                        .computeIfAbsent(edge.getFromNodeName(), k -> new HashSet<>())
+                        .add(edge.getToNodeName());
+            }
+        }
 
         for (TaskExecutionEntity taskExecution : taskExecutions) {
             if (!isSuccessfulStatus(taskExecution.getStatus())) {
                 continue;
             }
-            String downstreamPlan = downstreamPlanByTaskName.get(taskExecution.getName());
-            if (!isBlank(downstreamPlan) && !successfulPlanNames.contains(downstreamPlan)) {
-                return false;
+            Set<String> downstreamPlans = downstreamPlansByTaskName.getOrDefault(
+                    taskExecution.getName(), Collections.emptySet());
+            for (String downstreamPlan : downstreamPlans) {
+                if (!successfulPlanNames.contains(downstreamPlan)) {
+                    return false;
+                }
             }
         }
 

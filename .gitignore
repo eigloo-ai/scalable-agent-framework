@@ -34,7 +34,9 @@ wheels/
 .idea/workspace.xml
 *.swp
 *.swo
-
+.kiro/
+temp/
+prompts/
 # OS
 .DS_Store
 Thumbs.db
@@ -56,6 +58,6 @@ design prompt.txt
 .idea.bak/
 .idea.bak2/
 .idea.save.good
-**/mvnw
+
 foo
 server/gateway/tiny-gateway/
