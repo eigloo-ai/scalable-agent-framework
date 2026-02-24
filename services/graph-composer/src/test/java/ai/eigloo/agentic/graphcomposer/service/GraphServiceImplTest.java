@@ -9,6 +9,7 @@ import ai.eigloo.agentic.graph.entity.AgentGraphEntity;
 import ai.eigloo.agentic.graph.entity.GraphRunStatus;
 import ai.eigloo.agentic.graph.entity.PlanEntity;
 import ai.eigloo.agentic.graph.repository.AgentGraphRepository;
+import ai.eigloo.agentic.graph.repository.GraphEdgeRepository;
 import ai.eigloo.agentic.graph.repository.GraphRunRepository;
 import ai.eigloo.agentic.graph.repository.PlanRepository;
 import ai.eigloo.agentic.graph.repository.TaskRepository;
@@ -45,6 +46,9 @@ class GraphServiceImplTest {
 
     @Mock
     private TaskRepository taskRepository;
+
+    @Mock
+    private GraphEdgeRepository graphEdgeRepository;
 
     @Mock
     private GraphRunRepository graphRunRepository;
@@ -86,6 +90,10 @@ class GraphServiceImplTest {
         testGraphDto.setUpdatedAt(now);
 
         testCreateRequest = new CreateGraphRequest("New Graph", "test-tenant");
+
+        lenient().when(graphEdgeRepository.findByAgentGraphId(anyString())).thenReturn(List.of());
+        lenient().when(fileService.getPlanFiles(anyString())).thenReturn(List.of());
+        lenient().when(fileService.getTaskFiles(anyString())).thenReturn(List.of());
     }
 
     @Test

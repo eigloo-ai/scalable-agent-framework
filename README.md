@@ -2,18 +2,15 @@
 
 ## Purpose & Vision
 
-The framework allows developers to compose and execute **directed cyclic graphs of work items** (“AgentGraphs”) for agentic workflows. Each node is a Task that emits an immutable state object; edges transport that state to the next node, enabling transparent **plan → act → observe → act** cycles that repeat until a goal is reached or a guardrail intervenes, all while retaining full provenance.
+The framework allows developers to compose and execute **directed cyclic graphs of work items** ("AgentGraphs") for agentic workflows. Each node is a Task that emits an immutable state object; edges transport that state to the next node, enabling transparent **plan → act → observe → act** cycles that repeat until a goal is reached or a guardrail intervenes, all while retaining full provenance.
 
 **Why?**
 
 * **Scalable Open Source Agent Runner** - Scales from running on a single laptop to a multitenant cloud deployment.
 * **Clean separation of concerns** – "Tasks" handles *doing*, "Plans" handles *deciding*, letting you mix deterministic rules with LLM‑powered reasoning without entangling the two.
 * **Simple Graph Abstraction** - Logically, Task nodes output to Plan nodes, and Plan nodes output to Task nodes in alternating tick-tock execution.
-* **Runs everywhere** – the same graph definition executes on a laptop (in‑memory queue + SQLite) or at SaaS scale (Kafka + Postgres + S3) by swapping pluggable adapters.
-* **Centralised guardrails** – cost, safety, and iteration caps enforced in the control plane so compliance and budgeting never rely on agent authors to ‘do the right thing’.
-* **Auditable and Reproducible**– every Task Execution is an append‑only event that gets recorded.  Restart an agent from any point in  a previous execution.
-* **Batteries‑included DX** – typed SDK, local dev server, YAML guardrail policies, and scaffold generators so teams can ship a proof‑of‑concept in minutes yet scale to production later.
-* **Language‑agnostic core** – interfaces are JSON & gRPC; today’s Python SDK can coexist with a future JVM or Rust orchestrator without breaking existing agents.
+* **Auditable** – every Task Execution and Plan Execution is an append‑only event persisted to PostgreSQL.
+* **Language‑agnostic core** – interfaces are Protocol Buffers & gRPC; Python task/plan code runs in isolated subprocesses.
 
 ### Example AgentGraph - Coding Agent
 
@@ -55,117 +52,115 @@ This Coding Agent example Agent Graph illustrates **plan → act → observe** l
 
 ---
 
-## Core Domain Model  Core Domain Model
+## Core Domain Model
 
 | Entity            | Description                                                                                                                         |
 |-------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| **AgentGraph**    | Immutable graph template (nodes + edges) with semantic versioning.                                                                  |
+| **AgentGraph**    | Immutable graph template (nodes + edges).                                                                                           |
 | **AgentLifetime** | One runtime instance of an AgentGraph executing to completion.                                                                      |
 | **Task**          | Node type that performs work – API call, DB query, computation.                                                                     |
-| **Plan**          | Node type that selects the **Task** based on rules or prior state.                                                                  |
-| **Edge**          | Logical link between Tasks and Plans, mainly for configuration (`NORMAL`, `PARALLEL`, `JOIN`, `FINAL`).                             |
-| **TaskResult**    | Structured output from any task type.  Used as input to the downstream **Plan**                                                     |
-| **TaskExecution** | Record of a single run of a **Task**; Contains a **TaskResult** to be used as input to the next **Plan**.                           |
-| **PlanResult**    | Structured output from any plan type.  Used as input to the downstream **Task**                                                     |
-| **PlanExecution** | Record of a single run of a **Plan**; Contains the upstream **TaskResult** passed through to be used as input to the next **Task**. |         
+| **Plan**          | Node type that selects the next **Task**(s) based on rules or prior state.                                                          |
+| **Edge**          | Directed link between a Task and a Plan (or vice versa). Types: `NORMAL`, `PARALLEL`, `JOIN`, `FINAL`.                             |
+| **TaskResult**    | Structured output from a Task. Supports inline data or external URI reference for large payloads.                                   |
+| **TaskExecution** | Append-only record of a single Task run; contains the **TaskResult**.                                                               |
+| **PlanResult**    | Structured output from a Plan; contains `next_task_names[]` routing decision.                                                       |
+| **PlanExecution** | Append-only record of a single Plan run; contains the **PlanResult**.                                                               |
 
 ---
 
-##  TaskExecution - Execution Record
+## TaskExecution - Execution Record
 
-A record emitted on every TaskExecution.  Three sections:
+A record emitted on every TaskExecution. Two sections:
 
-1. **Headers** – identity, timing, status, iteration.
-2. **Policy Telemetry** – `tokens_used`, `cost_usd`, `latency_ms`, etc.
-3. **TaskResult** – `{ oneof:{inline: any | uri: string }, uri, size_bytes}` (big blobs referenced by URI to object storage, small blobs inlined.
-
+1. **Headers** – identity (`exec_id`, `graph_id`, `lifetime_id`, `tenant_id`), timing (`created_at`), status, iteration, attempt count.
+2. **TaskResult** – `{ oneof: { inline_data: Any | external_data: StoredData } }` (large blobs can be referenced by URI to object storage, small blobs inlined).
 
 ---
-##  Logical Flow (Happy Path)
+## Logical Flow (Happy Path)
 
-1. **Task** executes and produces some output as a **TaskResult**.    
+1. **Task** executes and produces some output as a **TaskResult**.
 2. **TaskResult** is used as input to the downstream **Plan**.
-3. **Plan** evaluates and produces a **PlanResult**.
+3. **Plan** evaluates and produces a **PlanResult** listing `next_task_names[]`.
 4. Downstream **Task** executes using the **PlanResult** as input and produces a **TaskResult**.
 
-##  Runtime Flow (Happy Path)
+## Runtime Flow (Happy Path)
 
-1. **Task** executes and produces some output.  
-   * If the result is large (>1mb), the large result is written to the Blob Store and a **TaskResult** with a URI is created and wrapped in a **TaskExecution**.
-   * If the result is small, the **TaskResult** is created with output inlined and wrapped in a **TaskExecution**.
-   * The **TaskExecution** is published to the **Data Plane** topic.
-2. **Data Plane** persists the **TaskExecution** in the State DB (append‑only) and republishes a *lightweight reference message* to the **Control Plane** topic.
-3. **Control Plane** reads the reference, loads TaskExecution headers (and blob metadata), and evaluates YAML guardrails.
-   * **Pass** → forwards the envelope (or just its reference) to the target **Plan** executor queue.
-   * **Fail** → issues `REJECT_EXECUTION`, `PAUSE_LIFETIME`, or `ABORT_LIFETIME` events.
-4. **Plan** is passed the previous **TaskExecution**s and **TaskResult**s from the **Control Plane**, produces a **PlanResult** listing `next_task_names[]`, and emits its own **PlanExecution**.
-5. **Data Plane** persists the **PlanExecution** in the State DB (append‑only) and republishes a *lightweight reference message* to the **Control Plane** topic.
-6. Step 1 repeats for the downstream **Task**, but with the **PlanResult** passed as input from the Control Plane.
-7. Steps 2-6 repeat following the path of the graphuntil an edge of type `FINAL` is taken, completing the AgentLifetime.
+1. **Task** executes and produces a **TaskExecution** (containing a **TaskResult**).
+   * The **TaskExecution** is published to the `task-executions-{tenantId}` Kafka topic.
+2. **Data Plane** persists the **TaskExecution** in PostgreSQL (append‑only) and republishes the message to the `persisted-task-executions-{tenantId}` topic.
+3. **Control Plane** reads the persisted execution, evaluates guardrails, and looks up the downstream Plan in the graph.
+   * **Pass** → publishes a **PlanInput** to the `plan-inputs-{tenantId}` topic.
+4. **Executor** consumes the **PlanInput**, executes the Plan Python code, produces a **PlanExecution** listing `next_task_names[]`, and publishes to the `plan-executions-{tenantId}` topic.
+5. **Data Plane** persists the **PlanExecution** and republishes to the `persisted-plan-executions-{tenantId}` topic.
+6. **Control Plane** reads the persisted PlanExecution, resolves next task names against the graph, and publishes **TaskInput** messages to the `task-inputs-{tenantId}` topic.
+7. Steps 1-6 repeat following the graph path until all graph edges are resolved, completing the AgentLifetime.
 
 ---
 
-## Layered Architecture
+## Current Architecture
 
-```
-┌───────────────┐   User code: Tasks & Graphs (Python SDK)
-│  SDK Layer    │
-├───────────────┤   Deterministic router, guardrail engine, retry logic
-│ Orchestrator  │
-├───────────────┤   Pluggable adapters
-│  Adapters     │  • Event Bus  (In‑mem | Kafka)
-│               │  • State DB   (SQLite | Postgres)
-│               │  • Blob Store (FS | S3)
-│               │  • KV Store   (dict | Redis)
-└───────────────┘
-```
+The system consists of **3 core microservices** plus supporting services, all Java 21 / Spring Boot, communicating via Kafka with Protocol Buffers:
 
----
+| Service | Port | Role |
+|---------|------|------|
+| **Data Plane** | 8081 | Persists execution records, forwards to control plane topics |
+| **Control Plane** | 8082 | Evaluates guardrails, routes messages between executors based on graph topology |
+| **Executor** | 8083 | Executes Python task/plan code via subprocess, publishes results |
+| **Graph Composer** | 8088 | Web UI + REST API for graph management |
+| **Graph Builder** | 8087 | Parses graph specifications (DOT format) |
+| **Admin** | 8086 | Administrative functions |
+| **Frontend** | 5173 | React/Vite UI for graph visualization |
 
-##  Deployment Profiles
+### Kafka Topic Architecture (6 topic types, tenant-aware)
 
-| Profile   | Event Bus       | State DB             | Blob Store | KV / Cache   |
-| --------- | --------------- | -------------------- | ---------- | ------------ |
-| **Local** | `asyncio.Queue` | SQLite WAL           | Local FS   | In‑proc dict |
-| **Cloud** | Kafka / Pulsar  | Postgres / Cockroach | S3 / GCS   | Redis        |
-| **Test**  | `asyncio.Queue` | In-memory            | Local FS   | In-memory    |
+All topics follow pattern: `{message-type}-{tenantId}`
 
-Both profiles share identical envelope schema and guardrail logic.
+1. `task-executions-{tenantId}` – Executor publishes TaskExecution protobuf messages
+2. `plan-executions-{tenantId}` – Executor publishes PlanExecution protobuf messages
+3. `persisted-task-executions-{tenantId}` – Data Plane forwards to Control Plane
+4. `persisted-plan-executions-{tenantId}` – Data Plane forwards to Control Plane
+5. `plan-inputs-{tenantId}` – Control Plane publishes PlanInput for Executor
+6. `task-inputs-{tenantId}` – Control Plane publishes TaskInput for Executor
 
 ---
 
-##  Guardrail Policies (Control Plane ONLY)
+## Guardrail Policies (Control Plane)
 
-* Declarative YAML (`sum(tokens_used) > 10 000 → abort_lifetime`).
-* Enforced per‑execution or cumulative per‑lifetime/tenant.
-* Actions on breach: `REJECT_EXECUTION`, `PAUSE_LIFETIME`, `ABORT_LIFETIME`.
+The control plane includes a **GuardrailEngine** that evaluates every execution before routing to the next node. The engine is currently a pass-through stub with the interface in place for future policy enforcement.
 
----
-
-##  Extensibility Points
-
-* **Task SDK** – subclass Task for custom tasks.
-* **Plan SDK** – subclass Plan for custom plans.
-* **Adapter SPI** – implement `EventBus`, `StateStore`, `BlobStore`, `KVStore` for new environments.
-* **Guardrail Engine** – pluggable policy language (YAML v1, Rego later).
-* **Language Ports** – JVM orchestrator can replace Python core; interfaces stay JSON/gRPC.
+**Planned capabilities:**
+* Declarative YAML policies (e.g., `sum(tokens_used) > 10,000 → abort_lifetime`)
+* Per‑execution or cumulative per‑lifetime/tenant enforcement
+* Actions on breach: `REJECT_EXECUTION`, `PAUSE_LIFETIME`, `ABORT_LIFETIME`
 
 ---
 
-##  Non‑Functional Goals
+## Extensibility Points
 
-* **Deterministic replay** – given the same envelopes, a graph run reproduces edge choices.
-* **Horizontal scalability** – SaaS tier targets 10 k concurrent AgentLifetimes.
+* **Task/Plan Python Code** – implement `plan.py` with `plan(plan_input) -> PlanResult` or `task.py` with `task(task_input) -> TaskResult`
+* **Graph Specification** – define graphs in GraphViz DOT format with `type="plan"` / `type="task"` attributes
+* **Guardrail Engine** – pluggable policy evaluation (planned: YAML v1, Rego)
+* **Language Ports** – interfaces are protobuf/gRPC; additional language runtimes can be added alongside Python
+
+---
+
+## Non‑Functional Goals
+
+* **Horizontal scalability** – SaaS tier targets 10k concurrent AgentLifetimes.
 * **Latency budget** – <250 ms p99 planner loop in cloud mode.
-* **Cost transparency** – real‑time spend & token tracking per tenant.
-* **Security** – per‑tenant topic isolation, SSE‑KMS encryption at rest.
+* **Security** – per‑tenant topic isolation.
+* **Append-only audit trail** – all executions are immutable records in PostgreSQL.
 
 ---
 
-##  Roadmap to MVP
+## Roadmap
 
-1. Finalise JSON Schema for ExecutionEnvelope + Plan (v1).
-2. Ship Python SDK (Task, Plan, telemetry helper).
-3. Implement local profile adapters; run “Hello World” graph.
-4. Build guardrail engine with YAML policies + unit tests.
-5. Cloud profile adapters (Kafka, Postgres, S3, Redis) & Helm chart.
+1. Implement guardrail engine with YAML policies + cost/token tracking.
+2. Add policy telemetry fields (`tokens_used`, `cost_usd`, `latency_ms`) to execution records.
+3. Implement blob store adapter (S3/GCS) for large TaskResult payloads.
+4. Add deterministic replay capability.
+5. Build Python SDK with typed Task/Plan base classes.
+6. Pluggable adapter SPI for Event Bus, State DB, Blob Store, KV Store.
+7. Local development profile (in-memory queue + SQLite).
+8. Dead letter queue (DLQ) per tenant for failed messages.
+9. Helm chart for Kubernetes deployment.

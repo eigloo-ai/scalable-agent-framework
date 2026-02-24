@@ -65,14 +65,14 @@ specification_directory/
 
 #### Plan Implementation
 - **File**: `plan.py` in each plan subdirectory
-- **Function**: `plan(upstream_results: List[TaskResult]) -> PlanResult`
-- **Purpose**: Process results from upstream tasks and produce plan results
+- **Function**: `plan(plan_input: PlanInput) -> PlanResult`
+- **Purpose**: Process input from upstream tasks and produce plan results
 - **Directory**: Must be in `plans/` directory with subdirectory matching node name
 
 #### Task Implementation
 - **File**: `task.py` in each task subdirectory
-- **Function**: `execute(upstream_plan: PlanResult) -> TaskResult`
-- **Purpose**: Process results from upstream plans and produce task results
+- **Function**: `task(task_input: TaskInput) -> TaskResult`
+- **Purpose**: Process input from upstream plan and produce task results
 - **Directory**: Must be in `tasks/` directory with subdirectory matching node name
 
 #### Dependencies
@@ -127,20 +127,24 @@ Nodes are identified as plans or tasks using **Node Attributes**: Use `type="pla
 Each plan must implement a `plan.py` file with the following signature:
 
 ```python
-from typing import List
+from agentic_common.pb import PlanInput, PlanResult
 
-def plan(upstream_results: List[TaskResult]) -> PlanResult:
+def plan(plan_input: PlanInput) -> PlanResult:
     """
-    Process results from upstream tasks and produce a plan result.
-    
+    Process input from upstream tasks and produce a plan result.
+
     Args:
-        upstream_results: List of results from upstream tasks
-        
+        plan_input: PlanInput protobuf containing upstream task executions,
+                    graph_id, lifetime_id, and plan_name
+
     Returns:
-        PlanResult: The plan result that will be consumed by downstream tasks
+        PlanResult: Protobuf with next_task_names[] and optional error_message
     """
-    # Implementation here
-    return PlanResult(data=processed_data)
+    # Access upstream task results via plan_input.task_executions
+    # Return PlanResult with next task names
+    result = PlanResult()
+    result.next_task_names.append("next_task_name")
+    return result
 ```
 
 ### Task Implementation
@@ -148,18 +152,24 @@ def plan(upstream_results: List[TaskResult]) -> PlanResult:
 Each task must implement a `task.py` file with the following signature:
 
 ```python
-def execute(upstream_plan: PlanResult) -> TaskResult:
+from agentic_common.pb import TaskInput, TaskResult
+
+def task(task_input: TaskInput) -> TaskResult:
     """
-    Process results from upstream plan and produce a task result.
-    
+    Process input from upstream plan and produce a task result.
+
     Args:
-        upstream_plan: Result from the upstream plan
-        
+        task_input: TaskInput protobuf containing the parent plan execution,
+                    graph_id, lifetime_id, and task_name
+
     Returns:
-        TaskResult: The task result that will be consumed by downstream plans
+        TaskResult: Protobuf with result data (inline or external) and optional error_message
     """
-    # Implementation here
-    return TaskResult(data=processed_data)
+    # Access parent plan result via task_input.plan_execution.result
+    # Return TaskResult with output data
+    result = TaskResult()
+    result.id = "result-id"
+    return result
 ```
 
 ### Task and Plan Dependencies
@@ -359,57 +369,34 @@ digraph DataProcessingGraph {
 
 **plans/plan_data_collection/plan.py**:
 ```python
-from typing import List
+from agentic_common.pb import PlanInput, PlanResult
 
-class TaskResult:
-    def __init__(self, data):
-        self.data = data
-
-class PlanResult:
-    def __init__(self, data):
-        self.data = data
-
-def plan(upstream_results: List[TaskResult]) -> PlanResult:
+def plan(plan_input: PlanInput) -> PlanResult:
     """
-    Collect and aggregate data from upstream tasks.
+    Collect and aggregate data from upstream tasks, then route to fetch task.
     """
-    aggregated_data = []
-    for result in upstream_results:
-        aggregated_data.extend(result.data)
-    
-    return PlanResult(data=aggregated_data)
+    result = PlanResult()
+    result.next_task_names.append("task_fetch_data")
+    return result
 ```
 
 **plans/plan_data_collection/requirements.txt**:
 ```
-requests>=2.25.0
-pandas>=1.3.0
+# No additional dependencies needed - agentic_common is provided by the executor
 ```
 
 **tasks/task_fetch_data/task.py**:
 ```python
-import requests
+from agentic_common.pb import TaskInput, TaskResult
 
-class PlanResult:
-    def __init__(self, data):
-        self.data = data
-
-class TaskResult:
-    def __init__(self, data):
-        self.data = data
-
-def execute(upstream_plan: PlanResult) -> TaskResult:
+def task(task_input: TaskInput) -> TaskResult:
     """
     Fetch data from external API based on plan parameters.
     """
-    # Extract parameters from plan
-    params = upstream_plan.data
-    
-    # Fetch data
-    response = requests.get("https://api.example.com/data", params=params)
-    data = response.json()
-    
-    return TaskResult(data=data)
+    result = TaskResult()
+    result.id = "fetch-data-result"
+    # Set result data as needed
+    return result
 ```
 
 **tasks/task_fetch_data/requirements.txt**:

@@ -177,7 +177,7 @@ class GraphRunLifecycleServiceTest {
         when(taskExecutionRepository.findByTenantIdAndGraphIdAndLifetimeIdOrderByCreatedAtAsc("tenant-a", "graph-a", "life-2"))
                 .thenReturn(List.of(task1AExecution, task1BExecution, task2Execution));
 
-        service.onTaskExecutionPersisted(task2Execution);
+        service.onTaskExecutionPersisted(task2Execution, null);
 
         ArgumentCaptor<GraphRunEntity> savedCaptor = ArgumentCaptor.forClass(GraphRunEntity.class);
         verify(graphRunRepository, atLeastOnce()).save(savedCaptor.capture());

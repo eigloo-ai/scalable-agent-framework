@@ -84,7 +84,8 @@ public class PersistenceService {
             // Save to database
             TaskExecutionEntity savedEntity = taskExecutionRepository.save(entity);
             logger.debug("Saved TaskExecution {}/{} to database", savedEntity.getName(), savedEntity.getExecId());
-            graphRunLifecycleService.onTaskExecutionPersisted(savedEntity);
+            String taskErrorMessage = taskExecution.hasResult() ? taskExecution.getResult().getErrorMessage() : null;
+            graphRunLifecycleService.onTaskExecutionPersisted(savedEntity, taskErrorMessage);
             
             logger.info(
                     "Persisted task execution tenant={} graph={} lifetime={} node={} exec={}",
