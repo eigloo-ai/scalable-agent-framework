@@ -2,15 +2,15 @@
 
 ## Purpose & Vision
 
-The framework allows developers to compose and execute **directed cyclic graphs of work items** ("AgentGraphs") for agentic workflows. Each node is a Task that emits an immutable state object; edges transport that state to the next node, enabling transparent **plan → act → observe → act** cycles that repeat until a goal is reached or a guardrail intervenes, all while retaining full provenance.
+The framework allows developers to compose and execute **directed cyclic graphs of work items** ("AgentGraphs") for agentic workflows. Each node is a Task that emits an immutable state object; edges transport that state to the next node, enabling transparent **plan → act → observe → act** cycles that repeat until all graph edges are resolved, all while retaining full provenance.
 
 **Why?**
 
-* **Scalable Open Source Agent Runner** - Scales from running on a single laptop to a multitenant cloud deployment.
+* **Multitenant Agent Runner** – runs agent graphs at scale with per-tenant Kafka topic isolation and PostgreSQL persistence.
 * **Clean separation of concerns** – "Tasks" handles *doing*, "Plans" handles *deciding*, letting you mix deterministic rules with LLM‑powered reasoning without entangling the two.
 * **Simple Graph Abstraction** - Logically, Task nodes output to Plan nodes, and Plan nodes output to Task nodes in alternating tick-tock execution.
 * **Auditable** – every Task Execution and Plan Execution is an append‑only event persisted to PostgreSQL.
-* **Language‑agnostic core** – interfaces are Protocol Buffers & gRPC; Python task/plan code runs in isolated subprocesses.
+* **Protocol Buffers** – all inter-service messages are protobuf-serialized over Kafka; Python task/plan code runs in isolated subprocesses.
 
 ### Example AgentGraph - Coding Agent
 
@@ -60,8 +60,8 @@ This Coding Agent example Agent Graph illustrates **plan → act → observe** l
 | **AgentLifetime** | One runtime instance of an AgentGraph executing to completion.                                                                      |
 | **Task**          | Node type that performs work – API call, DB query, computation.                                                                     |
 | **Plan**          | Node type that selects the next **Task**(s) based on rules or prior state.                                                          |
-| **Edge**          | Directed link between a Task and a Plan (or vice versa). Types: `NORMAL`, `PARALLEL`, `JOIN`, `FINAL`.                             |
-| **TaskResult**    | Structured output from a Task. Supports inline data or external URI reference for large payloads.                                   |
+| **Edge**          | Directed link between a Task and a Plan (or vice versa). Edges enforce alternation: PLAN→TASK or TASK→PLAN only.                   |
+| **TaskResult**    | Structured output from a Task. Protobuf schema supports inline data or external URI reference (currently inline only).              |
 | **TaskExecution** | Append-only record of a single Task run; contains the **TaskResult**.                                                               |
 | **PlanResult**    | Structured output from a Plan; contains `next_task_names[]` routing decision.                                                       |
 | **PlanExecution** | Append-only record of a single Plan run; contains the **PlanResult**.                                                               |
@@ -73,7 +73,7 @@ This Coding Agent example Agent Graph illustrates **plan → act → observe** l
 A record emitted on every TaskExecution. Two sections:
 
 1. **Headers** – identity (`exec_id`, `graph_id`, `lifetime_id`, `tenant_id`), timing (`created_at`), status, iteration, attempt count.
-2. **TaskResult** – `{ oneof: { inline_data: Any | external_data: StoredData } }` (large blobs can be referenced by URI to object storage, small blobs inlined).
+2. **TaskResult** – `{ oneof: { inline_data: Any | external_data: StoredData } }`. Currently all results are inlined; external blob storage is defined in the protobuf schema but not yet implemented at runtime.
 
 ---
 ## Logical Flow (Happy Path)
@@ -140,16 +140,15 @@ The control plane includes a **GuardrailEngine** that evaluates every execution 
 * **Task/Plan Python Code** – implement `plan.py` with `plan(plan_input) -> PlanResult` or `task.py` with `task(task_input) -> TaskResult`
 * **Graph Specification** – define graphs in GraphViz DOT format with `type="plan"` / `type="task"` attributes
 * **Guardrail Engine** – pluggable policy evaluation (planned: YAML v1, Rego)
-* **Language Ports** – interfaces are protobuf/gRPC; additional language runtimes can be added alongside Python
+* **Language Ports** – interfaces are protobuf; additional language runtimes can be added alongside Python
 
 ---
 
-## Non‑Functional Goals
+## Non‑Functional Properties
 
-* **Horizontal scalability** – SaaS tier targets 10k concurrent AgentLifetimes.
-* **Latency budget** – <250 ms p99 planner loop in cloud mode.
-* **Security** – per‑tenant topic isolation.
+* **Per-tenant isolation** – Kafka topics are scoped by tenant ID; routing and persistence are tenant-aware.
 * **Append-only audit trail** – all executions are immutable records in PostgreSQL.
+* **Manual Kafka acknowledgment** – messages are only acknowledged after successful persistence, providing at-least-once delivery.
 
 ---
 
@@ -158,9 +157,11 @@ The control plane includes a **GuardrailEngine** that evaluates every execution 
 1. Implement guardrail engine with YAML policies + cost/token tracking.
 2. Add policy telemetry fields (`tokens_used`, `cost_usd`, `latency_ms`) to execution records.
 3. Implement blob store adapter (S3/GCS) for large TaskResult payloads.
-4. Add deterministic replay capability.
-5. Build Python SDK with typed Task/Plan base classes.
-6. Pluggable adapter SPI for Event Bus, State DB, Blob Store, KV Store.
-7. Local development profile (in-memory queue + SQLite).
-8. Dead letter queue (DLQ) per tenant for failed messages.
-9. Helm chart for Kubernetes deployment.
+4. Add edge type semantics (`NORMAL`, `PARALLEL`, `JOIN`, `FINAL`) for richer graph control flow.
+5. Add deterministic replay capability.
+6. Build Python SDK with typed Task/Plan base classes.
+7. Pluggable adapter SPI for Event Bus, State DB, Blob Store, KV Store.
+8. Local development profile (in-memory queue + SQLite).
+9. Dead letter queue (DLQ) per tenant for failed messages.
+10. gRPC interfaces for inter-service communication alongside REST.
+11. Helm chart for Kubernetes deployment.
