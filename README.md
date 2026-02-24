@@ -99,6 +99,8 @@ A record emitted on every TaskExecution. Two sections:
 
 ## Current Architecture
 
+> For the complete Kafka topic contracts, protobuf schemas, lifecycle states, and internal API reference, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 The system consists of **3 core microservices** plus supporting services, all Java 21 / Spring Boot, communicating via Kafka with Protocol Buffers:
 
 | Service | Port | Role |
@@ -110,6 +112,27 @@ The system consists of **3 core microservices** plus supporting services, all Ja
 | **Graph Builder** | 8087 | Parses graph specifications (DOT format) |
 | **Admin** | 8086 | Administrative functions |
 | **Frontend** | 5173 | React/Vite UI for graph visualization |
+
+### Execution Loop
+
+```mermaid
+sequenceDiagram
+    participant E as Executor
+    participant DP as Data Plane
+    participant CP as Control Plane
+
+    E->>DP: TaskExecution (protobuf/Kafka)
+    DP->>DP: Persist to PostgreSQL
+    DP->>CP: persisted-task-execution
+    CP->>CP: Evaluate guardrails + resolve graph
+    CP->>E: PlanInput
+    E->>DP: PlanExecution (protobuf/Kafka)
+    DP->>DP: Persist to PostgreSQL
+    DP->>CP: persisted-plan-execution
+    CP->>CP: Resolve next task(s) from graph
+    CP->>E: TaskInput
+    Note over E,CP: Loop repeats until all graph edges are resolved
+```
 
 ### Kafka Topic Architecture (6 topic types, tenant-aware)
 
